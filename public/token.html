@@ -36,36 +36,46 @@
 </style>
 </head>
 <body>
-    <div id="token">---</div>
-    <div id="qrcode"></div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    <script>
-    const ipServer = location.hostname; // IP o hostname del server
-    const frontendPath = "/index.html"; // pagina studenti
-    let qrcode = new QRCode(document.getElementById("qrcode"), { width: 200, height: 200 });
-    
-    async function aggiornaToken() {
-      try {
-        const res = await fetch('/token');
-        if (!res.ok) throw new Error("Token non disponibile");
-        const token = await res.text();
-    
-        document.getElementById('token').textContent = token;
-    
-        // QR code punta a index.html con token precompilato
-        const url = `http://10.176.0.99:3000?token=${token}`;
-        qrcode.clear();
-        qrcode.makeCode(url);
-    
-      } catch (e) {
-        console.error(e);
-        document.getElementById('token').textContent = '---';
-      }
+  <div id="token">---</div>
+  <div id="qrcode"></div>
+  <div id="status"></div>
+
+  <!-- Libreria QRCode.js -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script>
+  let serverIP = 'localhost'; // fallback
+  const frontendPath = "/index.html"; // pagina studenti
+  let qrcode = new QRCode(document.getElementById("qrcode"), { width: 200, height: 200 });
+
+  async function aggiornaToken() {
+    try {
+      // Chiedi al server l'IP reale
+      const ipRes = await fetch('/server-ip');
+      if (ipRes.ok) serverIP = await ipRes.text();
+
+      // Prendi il token
+      const res = await fetch('/token');
+      if (!res.ok) throw new Error("Token non disponibile");
+      const token = await res.text();
+
+      document.getElementById('token').textContent = token;
+      document.getElementById('status').textContent = '';
+
+      // Genera QR code con token precompilato
+      const url = `http://${serverIP}:3000${frontendPath}?token=${token}`;
+      qrcode.clear();
+      qrcode.makeCode(url);
+
+    } catch (e) {
+      console.error(e);
+      document.getElementById('token').textContent = '---';
+      document.getElementById('status').textContent = 'Errore: token non disponibile';
     }
-    
-    setInterval(aggiornaToken, 1000);
-    aggiornaToken();
-    </script>
+  }
+
+  // Aggiorna ogni secondo
+  setInterval(aggiornaToken, 1000);
+  aggiornaToken();
+  </script>
 </body>
 </html>

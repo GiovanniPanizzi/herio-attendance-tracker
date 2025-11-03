@@ -4,6 +4,7 @@ const sqlite3 = require('sqlite3').verbose();
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const PORT = 3000;
 const DB_PATH = path.join(__dirname, 'presenze.db');
@@ -27,7 +28,6 @@ const db = new sqlite3.Database(DB_PATH, err => {
 db.serialize(() => {
   db.run(`CREATE TABLE presenze (
     matricola TEXT PRIMARY KEY,
-    email TEXT,
     ip TEXT UNIQUE,
     timestamp INTEGER
   )`);
@@ -63,8 +63,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // --- API registrazione ---
 app.post('/registra', (req, res) => {
-  const { matricola, email, token } = req.body;
-  if (!matricola || !email || !token)
+  const { matricola, token } = req.body;
+  if (!matricola || !token)
     return res.status(400).json({ status: "error", msg: "Campi mancanti" });
 
   const ip = (req.ip || req.connection.remoteAddress).replace(/^::ffff:/, '');
@@ -88,8 +88,8 @@ app.post('/registra', (req, res) => {
 
       if (!existing) {
         db.run(
-          "INSERT INTO presenze(matricola,email,ip,timestamp) VALUES(?,?,?,?)",
-          [matricola, email, ip, Date.now()],
+          "INSERT INTO presenze(matricola,ip,timestamp) VALUES(?,?,?)",
+          [matricola, ip, Date.now()],
           err => {
             if (err) console.error("Errore inserimento presenza:", err);
             else console.log(`Registrata: ${matricola} (${ip})`);
@@ -113,20 +113,51 @@ app.get('/presenze', (req, res) => {
   });
 });
 
+// --- Endpoint token (solo da localhost) ---
 app.get('/token', (req, res) => {
-    if (!req.ip.startsWith('127.') && !req.ip.startsWith('::1')) {
-        return res.status(403).send("Accesso negato");
+  if (!req.ip.startsWith('127.') && !req.ip.startsWith('::1')) {
+    return res.status(403).send("Accesso negato");
+  }
+
+  db.get("SELECT * FROM token WHERE expires>?", [Date.now()], (err, row) => {
+    if (err || !row) return res.status(404).send("Nessun token valido");
+    res.send(row.value);
+  });
+});
+
+function getLocalIP() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) {
+        return net.address;
+      }
     }
-    
-    db.get("SELECT * FROM token WHERE expires>?", [Date.now()], (err, row) => {
-        if (err || !row) return res.status(404).send("Nessun token valido");
-        res.send(row.value);
-    });
-    });
+  }
+  return 'localhost';
+}
+
+app.get('/server-ip', (req, res) => {
+  res.send(getLocalIP());
+});
+
+// --- Trova IP locale ---
+function getLocalIP() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+  return 'localhost';
+}
 
 // --- Avvio server ---
+const localIP = getLocalIP();
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server in LAN su http://<IP_LOCALE>:${PORT}`);
+  console.log(`Server in LAN su http://${localIP}:${PORT}`);
 });
 
 
