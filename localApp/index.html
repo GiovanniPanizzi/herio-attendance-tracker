@@ -204,7 +204,7 @@
                 deleteBtn.onclick=async()=>{
                     if(!confirm(`Vuoi eliminare lo studente "${s.nome} ${s.cognome}"?`)) return;
                     try{
-                        const res = await fetch(`http://localhost:3000/studenti/${s.matricola}`,{method:'DELETE'});
+                        const res = await fetch(`http://localhost:3000/studenti/${s.matricola}/${currentClassId}`, { method:'DELETE' });
                         if(!res.ok) throw new Error();
                         fetchStudenti(currentClassId);
                     }catch(err){
