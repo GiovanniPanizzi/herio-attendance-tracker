@@ -1,0 +1,1 @@
+Questo ramo serve ad iniziare la realizzazione dell'app come app desktop invece che puramente web. Il prof dovrebbe poter scaricare l'eseguibile invece di dover manualmente installare tutte le dipendenze
