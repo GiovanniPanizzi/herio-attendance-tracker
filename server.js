@@ -96,6 +96,14 @@ app.get('/classi-con-numero-studenti', (req, res) => {
   });
 });
 
+app.get('/classi/:id/lezioni', (req, res) => {
+  const classeId = req.params.id;
+  db.all("SELECT * FROM lezioni WHERE classe_id = ? ORDER BY data ASC", [classeId], (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+  });
+});
+
 /* POST API */
 app.post('/classi', (req, res) => {
   const { nome } = req.body;
@@ -130,6 +138,21 @@ app.post('/classi/:id/studenti', (req, res) => {
   });
 });
 
+app.post('/classi/:id/lezioni', (req, res) => {
+  const classeId = req.params.id;
+  const { data } = req.body;
+
+  if (!data || data.trim() === '') {
+      return res.status(400).json({ error: 'La data e ora della lezione sono obbligatorie' });
+  }
+
+  const query = `INSERT INTO lezioni (classe_id, data) VALUES (?, ?)`;
+  db.run(query, [classeId, data.trim()], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: this.lastID, classe_id: classeId, data });
+  });
+});
+
 /* DELETE API */
 app.delete('/classi/:id', (req, res) => {
   const classeId = req.params.id;
@@ -145,6 +168,15 @@ app.delete('/studenti/:matricola', (req, res) => {
   db.run(`DELETE FROM studenti WHERE matricola = ?`, [matricola], function(err) {
       if (err) return res.status(500).json({ error: err.message });
       if (this.changes === 0) return res.status(404).json({ error: 'Studente non trovato' });
+      res.json({ success: true });
+  });
+});
+
+app.delete('/lezioni/:id', (req, res) => {
+  const lezioneId = req.params.id;
+  db.run(`DELETE FROM lezioni WHERE id = ?`, [lezioneId], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'Lezione non trovata' });
       res.json({ success: true });
   });
 });

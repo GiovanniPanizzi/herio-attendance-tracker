@@ -30,6 +30,10 @@
             <button id="backToClasses">← Torna alle classi</button>
             <button id="addStudentBtn">Aggiungi Studente</button>
             <ul id="studentList"></ul>
+
+            <h3>Lezioni</h3>
+            <button id="createLessonBtn">Crea Lezione</button>
+            <ul id="lezioniList"></ul>
         </div>
 
         <!-- Modal aggiunta studente -->
@@ -41,218 +45,286 @@
                 <button id="createStudentBtn">Aggiungi Studente</button>
             </div>
         </div>
+
+        <!-- Modal creazione lezione -->
+        <div id="lessonModalOverlay" class="modal-overlay" style="display:none;">
+            <div id="lessonModal" class="modal">
+                <input type="datetime-local" id="lessonDateTime" />
+                <button id="confirmLessonBtn">Crea</button>
+            </div>
+        </div>
     </main>
 
     <script>
-    // --- Elementi ---
-    const classesGrid = document.getElementById('classesGrid');
-    const addClassBtn = document.getElementById('addClassBtn');
-    const modalOverlay = document.getElementById('modalOverlay');
-    const newClassNameInput = document.getElementById('newClassName');
-    const createClassBtn = document.getElementById('createClassBtn');
+        const classesGrid = document.getElementById('classesGrid');
+        const addClassBtn = document.getElementById('addClassBtn');
+        const modalOverlay = document.getElementById('modalOverlay');
+        const newClassNameInput = document.getElementById('newClassName');
+        const createClassBtn = document.getElementById('createClassBtn');
 
-    const classDetail = document.getElementById('classDetail');
-    const classNameEl = document.getElementById('className');
-    const backToClassesBtn = document.getElementById('backToClasses');
-    const addStudentBtn = document.getElementById('addStudentBtn');
-    const studentList = document.getElementById('studentList');
+        const classDetail = document.getElementById('classDetail');
+        const classNameEl = document.getElementById('className');
+        const backToClassesBtn = document.getElementById('backToClasses');
+        const addStudentBtn = document.getElementById('addStudentBtn');
+        const studentList = document.getElementById('studentList');
 
-    const studentModalOverlay = document.getElementById('studentModalOverlay');
-    const studentMatricolaInput = document.getElementById('studentMatricola');
-    const studentNameInput = document.getElementById('studentName');
-    const studentSurnameInput = document.getElementById('studentSurname');
-    const createStudentBtn = document.getElementById('createStudentBtn');
+        const studentModalOverlay = document.getElementById('studentModalOverlay');
+        const studentMatricolaInput = document.getElementById('studentMatricola');
+        const studentNameInput = document.getElementById('studentName');
+        const studentSurnameInput = document.getElementById('studentSurname');
+        const createStudentBtn = document.getElementById('createStudentBtn');
 
-    let currentClassId = null;
-    const classCards = new Map(); // mappa idClasse -> elemento card
+        const lezioniList = document.getElementById('lezioniList');
+        const createLessonBtn = document.getElementById('createLessonBtn');
+        const lessonModalOverlay = document.getElementById('lessonModalOverlay');
+        const lessonDateTimeInput = document.getElementById('lessonDateTime');
+        const confirmLessonBtn = document.getElementById('confirmLessonBtn');
 
-    // --- Funzioni classi ---
-    function createClassCard(classe) {
-        const div = document.createElement('div');
-        div.classList.add('class-card');
+        let currentClassId = null;
+        const classCards = new Map();
 
-        const nome = document.createElement('h3');
-        nome.textContent = classe.nome;
-        div.appendChild(nome);
+        // --- Classi ---
+        function createClassCard(classe){
+            const div = document.createElement('div');
+            div.classList.add('class-card');
 
-        const badge = document.createElement('span');
-        badge.classList.add('badge');
-        badge.textContent = `${classe.studenti || 0} studenti`;
-        div.appendChild(badge);
+            const nome = document.createElement('h3');
+            nome.textContent = classe.nome;
+            div.appendChild(nome);
 
-        // Pulsante elimina classe
-        const deleteBtn = document.createElement('button');
-        deleteBtn.textContent = '✖';
-        deleteBtn.classList.add('delete-btn');
-        deleteBtn.style.position = 'absolute';
-        deleteBtn.style.left = '8px';
-        deleteBtn.style.bottom = '8px';
-        deleteBtn.onclick = async (e) => {
-            e.stopPropagation(); // evita apertura dettaglio classe
-            if (!confirm(`Vuoi eliminare la classe "${classe.nome}"?`)) return;
-            try {
-                const res = await fetch(`http://localhost:3000/classi/${classe.id}`, { method: 'DELETE' });
-                if (!res.ok) throw new Error('Errore eliminazione classe');
-                fetchClassi(); // aggiorna lista classi
-            } catch (err) {
-                console.error(err);
-                alert('Errore nell\'eliminazione della classe');
-            }
-        };
-        div.appendChild(deleteBtn);
+            const badge = document.createElement('span');
+            badge.classList.add('badge');
+            badge.textContent = `${classe.studenti || 0} studenti`;
+            div.appendChild(badge);
 
-        div.onclick = () => openClassDetail(classe.id, classe.nome);
-        classCards.set(classe.id, div);
-        return div;
-    }
-
-
-    function loadClasses(classi) {
-        classesGrid.innerHTML = '';
-        classi.forEach(classe => classesGrid.appendChild(createClassCard(classe)));
-    }
-
-    async function fetchClassi() {
-        try {
-            const res = await fetch('http://localhost:3000/classi-con-numero-studenti');
-            if (!res.ok) throw new Error('Errore fetch classi');
-            const data = await res.json();
-            loadClasses(data);
-        } catch (err) {
-            console.error(err);
-            classesGrid.textContent = 'Errore nel caricamento delle classi';
-        }
-    }
-
-    async function creaClasse(nomeClasse) {
-        try {
-            const res = await fetch('http://localhost:3000/classi', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nome: nomeClasse })
-            });
-            if (!res.ok) throw new Error('Errore creazione classe');
-            modalOverlay.style.display = 'none';
-            fetchClassi();
-        } catch (err) {
-            console.error(err);
-            alert('Errore nella creazione della classe');
-        }
-    }
-
-    // --- Funzioni studenti ---
-    async function fetchStudenti(classeId) {
-        try {
-            const res = await fetch(`http://localhost:3000/classi/${classeId}/studenti`);
-            const studenti = await res.json();
-            loadStudentList(studenti);
-
-            // Aggiorna badge numero studenti
-            const card = classCards.get(classeId);
-            if (card) {
-                const badge = card.querySelector('.badge');
-                badge.textContent = `${studenti.length} studenti`;
-            }
-
-        } catch (err) {
-            console.error(err);
-            studentList.innerHTML = '<li>Errore nel caricamento degli studenti</li>';
-        }
-    }
-
-    function loadStudentList(studenti) {
-        studentList.innerHTML = '';
-        studenti.forEach(s => {
-            const li = document.createElement('li');
-            li.textContent = `${s.matricola} - ${s.nome} ${s.cognome}`;
-
+            // Pulsante elimina classe
             const deleteBtn = document.createElement('button');
             deleteBtn.textContent = '✖';
             deleteBtn.classList.add('delete-btn');
-            deleteBtn.onclick = async () => {
-                if (!confirm(`Vuoi eliminare lo studente "${s.nome} ${s.cognome}"?`)) return;
-                try {
-                    const res = await fetch(`http://localhost:3000/studenti/${s.matricola}`, { method: 'DELETE' });
-                    if (!res.ok) throw new Error('Errore eliminazione studente');
-                    fetchStudenti(currentClassId);
-                } catch (err) {
+            deleteBtn.style.position = 'absolute';
+            deleteBtn.style.left = '8px';
+            deleteBtn.style.bottom = '8px';
+            deleteBtn.onclick = async (e) => {
+                e.stopPropagation();
+                if(!confirm(`Vuoi eliminare la classe "${classe.nome}"?`)) return;
+                try{
+                    const res = await fetch(`http://localhost:3000/classi/${classe.id}`, {method:'DELETE'});
+                    if(!res.ok) throw new Error();
+                    fetchClassi();
+                }catch(err){
                     console.error(err);
-                    alert('Errore nell\'eliminazione dello studente');
+                    alert('Errore eliminazione classe');
                 }
             };
+            div.appendChild(deleteBtn);
 
-            li.appendChild(deleteBtn);
-            studentList.appendChild(li);
-        });
-    }
-
-    async function creaStudente(matricola, nome, cognome) {
-        try {
-            const res = await fetch(`http://localhost:3000/classi/${currentClassId}/studenti`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ matricola, nome, cognome })
-            });
-            if (!res.ok) throw new Error('Errore aggiunta studente');
-            studentModalOverlay.style.display = 'none';
-            fetchStudenti(currentClassId); // aggiorna lista e badge
-        } catch (err) {
-            console.error(err);
-            alert('Errore nell\'aggiunta dello studente');
+            div.onclick = () => openClassDetail(classe.id, classe.nome);
+            classCards.set(classe.id, div);
+            return div;
         }
-    }
 
-    // --- Funzioni UI ---
-    function openClassDetail(classeId, classeNome) {
-        currentClassId = classeId;
-        classesGrid.style.display = 'none';
-        classDetail.style.display = 'block';
-        classNameEl.textContent = classeNome;
-        fetchStudenti(classeId);
-    }
+        function loadClasses(classi){
+            classesGrid.innerHTML = '';
+            classi.forEach(c => classesGrid.appendChild(createClassCard(c)));
+        }
 
-    function closeClassDetail() {
-        classDetail.style.display = 'none';
-        classesGrid.style.display = 'grid';
-    }
+        async function fetchClassi(){
+            try{
+                const res = await fetch('http://localhost:3000/classi-con-numero-studenti');
+                if(!res.ok) throw new Error();
+                const data = await res.json();
+                loadClasses(data);
+                addClassBtn.style.display = 'inline-block'; // mostra pulsante quando lista classi visibile
+            }catch(err){
+                console.error(err);
+                classesGrid.textContent = 'Errore caricamento classi';
+            }
+        }
 
-    // --- Eventi ---
-    addClassBtn.onclick = () => {
-        modalOverlay.style.display = 'flex';
-        newClassNameInput.value = '';
-        newClassNameInput.focus();
-    };
+        async function creaClasse(nome){
+            if(!nome) return alert('Inserisci un nome valido');
+            try{
+                const res = await fetch('http://localhost:3000/classi',{
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({nome})
+                });
+                if(!res.ok) throw new Error();
+                modalOverlay.style.display='none';
+                fetchClassi();
+            }catch(err){
+                console.error(err);
+                alert('Errore creazione classe');
+            }
+        }
 
-    createClassBtn.onclick = () => {
-        const nome = newClassNameInput.value.trim();
-        if (!nome) return alert('Inserisci un nome valido');
-        creaClasse(nome);
-    };
+        // --- Studenti ---
+        async function fetchStudenti(classeId){
+            try{
+                const res = await fetch(`http://localhost:3000/classi/${classeId}/studenti`);
+                const studenti = await res.json();
+                loadStudentList(studenti);
 
-    modalOverlay.onclick = e => { if (e.target === modalOverlay) modalOverlay.style.display = 'none'; };
-    backToClassesBtn.onclick = closeClassDetail;
+                // Aggiorna badge
+                const card = classCards.get(classeId);
+                if(card){
+                    const badge = card.querySelector('.badge');
+                    badge.textContent = `${studenti.length} studenti`;
+                }
+            }catch(err){
+                console.error(err);
+                studentList.innerHTML = '<li>Errore caricamento studenti</li>';
+            }
+        }
 
-    addStudentBtn.onclick = () => {
-        studentModalOverlay.style.display = 'flex';
-        studentMatricolaInput.value = '';
-        studentNameInput.value = '';
-        studentSurnameInput.value = '';
-        studentMatricolaInput.focus();
-    };
+        function loadStudentList(studenti){
+            studentList.innerHTML = '';
+            studenti.forEach(s=>{
+                const li = document.createElement('li');
+                li.textContent = `${s.matricola} - ${s.nome} ${s.cognome}`;
 
-    createStudentBtn.onclick = () => {
-        const matricola = studentMatricolaInput.value.trim();
-        const nome = studentNameInput.value.trim();
-        const cognome = studentSurnameInput.value.trim();
-        if (!matricola || !nome || !cognome) return alert('Inserisci tutti i dati');
-        creaStudente(matricola, nome, cognome);
-    };
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent='✖';
+                deleteBtn.classList.add('delete-btn');
+                deleteBtn.onclick=async()=>{
+                    if(!confirm(`Vuoi eliminare lo studente "${s.nome} ${s.cognome}"?`)) return;
+                    try{
+                        const res = await fetch(`http://localhost:3000/studenti/${s.matricola}`,{method:'DELETE'});
+                        if(!res.ok) throw new Error();
+                        fetchStudenti(currentClassId);
+                    }catch(err){
+                        console.error(err);
+                        alert('Errore eliminazione studente');
+                    }
+                };
+                li.appendChild(deleteBtn);
+                studentList.appendChild(li);
+            });
+        }
 
-    studentModalOverlay.onclick = e => { if (e.target === studentModalOverlay) studentModalOverlay.style.display = 'none'; };
+        async function creaStudente(matricola,nome,cognome){
+            if(!matricola || !nome || !cognome) return alert('Inserisci tutti i dati');
+            try{
+                const res = await fetch(`http://localhost:3000/classi/${currentClassId}/studenti`,{
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({matricola,nome,cognome})
+                });
+                if(!res.ok) throw new Error();
+                studentModalOverlay.style.display='none';
+                fetchStudenti(currentClassId);
+            }catch(err){
+                console.error(err);
+                alert('Errore aggiunta studente');
+            }
+        }
 
-    // --- Avvio ---
-    fetchClassi();
+        // --- Lezioni ---
+        async function fetchLezioni(classeId){
+            try{
+                const res = await fetch(`http://localhost:3000/classi/${classeId}/lezioni`);
+                const lezioni = await res.json();
+                loadLezioni(lezioni);
+            }catch(err){
+                console.error(err);
+                lezioniList.innerHTML='<li>Errore caricamento lezioni</li>';
+            }
+        }
+
+        function loadLezioni(lezioni){
+            lezioniList.innerHTML='';
+            lezioni.forEach(l=>{
+                const li = document.createElement('li');
+                li.textContent = `${l.data}`;
+
+                const deleteBtn=document.createElement('button');
+                deleteBtn.textContent='✖';
+                deleteBtn.classList.add('delete-btn');
+                deleteBtn.onclick=async()=>{
+                    if(!confirm('Vuoi eliminare questa lezione?')) return;
+                    try{
+                        const res=await fetch(`http://localhost:3000/lezioni/${l.id}`,{method:'DELETE'});
+                        if(!res.ok) throw new Error();
+                        fetchLezioni(currentClassId);
+                    }catch(err){
+                        console.error(err);
+                        alert('Errore eliminazione lezione');
+                    }
+                };
+                li.appendChild(deleteBtn);
+                lezioniList.appendChild(li);
+            });
+        }
+
+        // --- UI ---
+        function openClassDetail(classeId,classeNome){
+            currentClassId=classeId;
+            classesGrid.style.display='none';
+            addClassBtn.style.display='none'; // nasconde pulsante +
+            classDetail.style.display='block';
+            classNameEl.textContent=classeNome;
+            fetchStudenti(classeId);
+            fetchLezioni(classeId);
+        }
+
+        function closeClassDetail(){
+            classDetail.style.display='none';
+            classesGrid.style.display='grid';
+            addClassBtn.style.display='inline-block'; // mostra pulsante +
+        }
+
+        // --- Eventi ---
+        addClassBtn.onclick=()=>{
+            modalOverlay.style.display='flex';
+            newClassNameInput.value='';
+            newClassNameInput.focus();
+        };
+        createClassBtn.onclick=()=>creaClasse(newClassNameInput.value.trim());
+        modalOverlay.onclick=e=>{if(e.target===modalOverlay) modalOverlay.style.display='none';};
+        backToClassesBtn.onclick=closeClassDetail;
+
+        addStudentBtn.onclick=()=>{
+            studentModalOverlay.style.display='flex';
+            studentMatricolaInput.value='';
+            studentNameInput.value='';
+            studentSurnameInput.value='';
+            studentMatricolaInput.focus();
+        };
+        createStudentBtn.onclick=()=>creaStudente(
+            studentMatricolaInput.value.trim(),
+            studentNameInput.value.trim(),
+            studentSurnameInput.value.trim()
+        );
+        studentModalOverlay.onclick=e=>{if(e.target===studentModalOverlay) studentModalOverlay.style.display='none';};
+
+        createLessonBtn.onclick=()=>{
+            lessonModalOverlay.style.display='flex';
+            lessonDateTimeInput.value='';
+            lessonDateTimeInput.focus();
+        };
+        confirmLessonBtn.onclick=async()=>{
+            const dataOra=lessonDateTimeInput.value;
+            if(!dataOra) return alert('Inserisci data e ora');
+            try{
+                const res=await fetch(`http://localhost:3000/classi/${currentClassId}/lezioni`,{
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({data:dataOra})
+                });
+                if(!res.ok) throw new Error();
+                lessonModalOverlay.style.display='none';
+                fetchLezioni(currentClassId);
+            }catch(err){
+                console.error(err);
+                alert('Errore creazione lezione');
+            }
+        };
+        lessonModalOverlay.onclick=e=>{if(e.target===lessonModalOverlay) lessonModalOverlay.style.display='none';};
+
+        // --- Avvio ---
+        fetchClassi();
     </script>
 </body>
 </html>
+
 
