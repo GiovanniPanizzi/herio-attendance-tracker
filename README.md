@@ -29,8 +29,15 @@ erDiagram
         int presente
     }
 
+    TOKENS {
+        string token PK
+        int lezione_id FK, UNIQUE
+        string data_creazione
+    }
+
     CLASSI ||--o{ STUDENTI : contiene
     CLASSI ||--o{ LEZIONI : tiene
     LEZIONI ||--o{ PRESENZE : registra
     STUDENTI ||--o{ PRESENZE : partecipa
+    LEZIONI ||--o{ TOKENS : ha_token
 ```

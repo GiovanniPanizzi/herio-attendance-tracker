@@ -58,11 +58,27 @@
         <div id="attendanceModalOverlay" class="modal-overlay" style="display:none;">
             <div id="attendanceModal" class="modal">
                 <h2 id="attendanceTitle"></h2>
+                <button id="scanQRBtn">QR</button>
                 <ul id="attendanceList"></ul>
                 <button id="closeAttendanceBtn">Chiudi</button>
             </div>
         </div>
+
+        <!-- Overlay QR Token -->
+        <div id="qrTokenOverlay" class="modal-overlay">
+            <div class="qr-container">
+                <div id="qrTimer">25s</div>
+                <div id="qrToken">---</div>
+                <div id="qrCode"></div>
+                <div id="qrStatus"></div>
+                <button id="closeQRBtn">Chiudi</button>
+            </div>
+        </div>
+
+
     </main>
+    
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
     <script>
         const classesGrid = document.getElementById('classesGrid');
@@ -96,6 +112,8 @@
         const closeAttendanceBtn = document.getElementById('closeAttendanceBtn');
 
         let currentClassId = null;
+        let currentLezioneId = null;
+
         const classCards = new Map();
 
         // --- Classi ---
@@ -279,6 +297,7 @@
 
         // --- Presenze ---
         async function openAttendance(lezioneId, className) {
+            currentLezioneId = lezioneId;
             classesGrid.style.display = 'none';
             classDetail.style.display = 'none';
             addClassBtn.style.display = 'none';
@@ -320,7 +339,7 @@
         }
 
 
-    closeAttendanceBtn.onclick = () => {
+        closeAttendanceBtn.onclick = () => {
         attendanceModalOverlay.style.display = 'none';
         classDetail.style.display = currentClassId ? 'block' : 'none';
     };
@@ -390,6 +409,98 @@
         };
         lessonModalOverlay.onclick=e=>{if(e.target===lessonModalOverlay) lessonModalOverlay.style.display='none';};
 
+        const scanQRBtn = document.getElementById('scanQRBtn');
+        const qrTokenOverlay = document.getElementById('qrTokenOverlay');
+        const closeQRBtn = document.getElementById('closeQRBtn');
+
+        let qrInterval = null;
+        let countdownInterval = null; // qui
+
+        scanQRBtn.onclick = () => {
+            // 1. Validazione ID Lezione
+            if (!currentLezioneId) { 
+                alert("Errore: ID Lezione non disponibile. Apri prima il registro presenze per una lezione.");
+                return;
+            }
+            
+            // Mostra l'overlay e resetta gli elementi
+            qrTokenOverlay.style.display = 'flex';
+            document.getElementById('qrStatus').textContent = 'Generazione in corso...';
+            document.getElementById('qrToken').textContent = '---';
+            document.getElementById('qrCode').innerHTML = '';
+            
+            // Pulisce eventuali intervalli precedenti
+            if (qrInterval) clearInterval(qrInterval);
+            if (countdownInterval) clearInterval(countdownInterval);
+
+            const fetchToken = async () => {
+                try {
+                    // 2. Chiamata alla nuova API POST con l'ID della lezione
+                    const res = await fetch(`http://localhost:3000/lezioni/${currentLezioneId}/token`, {
+                        method: 'POST'
+                        // Non è necessario inviare un body, l'ID è nel Path Params
+                    });
+
+                    if (!res.ok) throw new Error('Errore generazione token (API).');
+                    const data = await res.json();
+
+                    const ip = data.ip_server;
+                    const token = data.token;
+                    
+                    // 3. Aggiornamento interfaccia
+                    document.getElementById('qrToken').textContent = token;
+                    document.getElementById('qrStatus').textContent = `Connettiti a ${ip}:${3000}`;
+
+                    const qrEl = document.getElementById('qrCode');
+                    qrEl.innerHTML = '';
+
+                    const qrData = `http://${ip}:3000/?token=${token}&lezione=${currentLezioneId}`;
+                    new QRCode(qrEl, {
+                        text: qrData,
+                        width: 200,
+                        height: 200
+                    });
+
+                    // 5. Gestione del Countdown (25 secondi)
+                    let countdown = 25;
+                    const timerEl = document.getElementById('qrTimer');
+                    clearInterval(countdownInterval); // Si assicura di fermare il vecchio
+                    
+                    countdownInterval = setInterval(() => {
+                        countdown--;
+                        if (countdown < 0) {
+                            countdown = 25; 
+                        }
+                        timerEl.textContent = countdown + 's';
+
+                    }, 1000);
+
+                } catch (e) {
+                    console.error(e);
+                    document.getElementById('qrStatus').textContent = 'Errore nel caricamento del token. Verifica che il server sia attivo.';
+                    document.getElementById('qrToken').textContent = '---';
+                    document.getElementById('qrCode').innerHTML = '';
+                    document.getElementById('qrTimer').textContent = '--s';
+                }
+            };
+
+            fetchToken();
+
+            qrInterval = setInterval(fetchToken, 25000);
+        };
+
+        closeQRBtn.onclick = () => {
+            qrTokenOverlay.style.display = 'none';
+            if (qrInterval) {
+                clearInterval(qrInterval);
+                qrInterval = null;
+            }
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+
+        };
         // --- Avvio ---
         fetchClassi();
     </script>

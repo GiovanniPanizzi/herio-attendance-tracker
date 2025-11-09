@@ -1,6 +1,9 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const crypto = require('crypto');
+
+const os = require('os');
 
 const app = express();
 const PORT = 3000;
@@ -8,6 +11,16 @@ const DB_PATH = path.join(__dirname, 'classes.db');
 
 app.use(express.json());
 app.use(express.static('public'));
+
+function checkLocal(req, res, next) {
+  const ip = req.ip || req.socket.remoteAddress;
+  // IPv4 localhost: 127.0.0.1, IPv6 localhost: ::1
+  if (ip === '127.0.0.1' || ip === '::1') {
+      next();
+  } else {
+      res.status(403).json({ error: 'Accesso consentito solo in locale' });
+  }
+}
 
 const db = new sqlite3.Database(DB_PATH, (err) => {
     if (err) return console.error("Errore apertura DB:", err.message);
@@ -56,17 +69,26 @@ db.serialize(() => {
           FOREIGN KEY (matricola, classe_id) REFERENCES studenti(matricola, classe_id) ON DELETE CASCADE
       );
     `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS tokens (
+          token TEXT PRIMARY KEY,
+          lezione_id INTEGER NOT NULL UNIQUE,
+          data_creazione TEXT NOT NULL,
+          FOREIGN KEY (lezione_id) REFERENCES lezioni(id) ON DELETE CASCADE
+      )
+  `);
 });
 
 /* --- GET API --- */
-app.get('/classi', (req, res) => {
+app.get('/classi', checkLocal, (req, res) => {
     db.all("SELECT * FROM classi", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
 });
 
-app.get('/classi/:id/studenti', (req, res) => {
+app.get('/classi/:id/studenti', checkLocal, (req, res) => {
+
     const classeId = req.params.id;
     db.all("SELECT * FROM studenti WHERE classe_id = ?", [classeId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -74,7 +96,8 @@ app.get('/classi/:id/studenti', (req, res) => {
     });
 });
 
-app.get('/lezioni/:lezioneId/presenze', (req, res) => {
+app.get('/lezioni/:lezioneId/presenze', checkLocal, (req, res) => {
+
   const { lezioneId } = req.params;
 
   db.all(
@@ -93,7 +116,8 @@ app.get('/lezioni/:lezioneId/presenze', (req, res) => {
   );
 });
 
-app.get('/classi-con-numero-studenti', (req, res) => {
+app.get('/classi-con-numero-studenti', checkLocal, (req, res) => {
+
     const query = `
         SELECT c.id, c.nome, COUNT(s.matricola) AS studenti
         FROM classi c
@@ -106,7 +130,8 @@ app.get('/classi-con-numero-studenti', (req, res) => {
     });
 });
 
-app.get('/classi/:id/lezioni', (req, res) => {
+app.get('/classi/:id/lezioni', checkLocal, (req, res) => {
+
     const classeId = req.params.id;
     db.all("SELECT * FROM lezioni WHERE classe_id = ? ORDER BY data ASC", [classeId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -114,8 +139,53 @@ app.get('/classi/:id/lezioni', (req, res) => {
     });
 });
 
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  for (let name in interfaces) {
+      for (let iface of interfaces[name]) {
+          if (iface.family === 'IPv4' && !iface.internal) {
+              return iface.address;
+          }
+      }
+  }
+  return '127.0.0.1';
+}
+
+app.post('/lezioni/:lezioneId/token', checkLocal, (req, res) => {
+  const { lezioneId } = req.params;
+  const token = crypto.randomBytes(3).toString('hex').toUpperCase();
+  const dataCreazione = new Date().toISOString();
+
+  // 1. Controlla che la lezione esista
+  db.get('SELECT id, classe_id FROM lezioni WHERE id = ?', [lezioneId], (err, lezione) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!lezione) return res.status(404).json({ error: 'Lezione non trovata' });
+
+      // 2. Prova a inserire il nuovo token (o a sostituire quello esistente)
+      const query = `
+          INSERT INTO tokens (token, lezione_id, data_creazione) 
+          VALUES (?, ?, ?)
+          ON CONFLICT(lezione_id) DO UPDATE SET token = excluded.token, data_creazione = excluded.data_creazione
+      `;
+      
+      db.run(query, [token, lezioneId, dataCreazione], function(err) {
+          if (err) return res.status(500).json({ error: err.message });
+
+          const ip = getLocalIP();
+          // Restituisce anche l'ID della classe per comodità nella UI
+          res.json({ 
+              token: token, 
+              lezione_id: lezioneId,
+              classe_id: lezione.classe_id,
+              ip_server: ip 
+          });
+      });
+  });
+});
+
 /* --- POST API --- */
-app.post('/classi', (req, res) => {
+app.post('/classi', checkLocal, (req, res) => {
+
     const { nome } = req.body;
     if (!nome || nome.trim() === '') {
         return res.status(400).json({ error: 'Il nome della classe è obbligatorio' });
@@ -128,7 +198,8 @@ app.post('/classi', (req, res) => {
     });
 });
 
-app.post('/classi/:id/studenti', (req, res) => {
+app.post('/classi/:id/studenti', checkLocal, (req, res) => {
+
     const classeId = req.params.id;
     const { matricola, nome, cognome } = req.body;
 
@@ -146,7 +217,8 @@ app.post('/classi/:id/studenti', (req, res) => {
     });
 });
 
-app.post('/classi/:id/lezioni', (req, res) => {
+app.post('/classi/:id/lezioni', checkLocal, (req, res) => {
+
     const classeId = req.params.id;
     const { data } = req.body;
 
@@ -160,7 +232,6 @@ app.post('/classi/:id/lezioni', (req, res) => {
 
         const lezioneId = this.lastID;
 
-        // Inserisci una presenza per ogni studente della classe
         db.all(`SELECT matricola FROM studenti WHERE classe_id = ?`, [classeId], (err, studenti) => {
             if (err) return console.error(err);
 
@@ -174,7 +245,8 @@ app.post('/classi/:id/lezioni', (req, res) => {
     });
 });
 
-app.post('/lezioni/:lezioneId/sincronizza-presenze', (req, res) => {
+app.post('/lezioni/:lezioneId/sincronizza-presenze', checkLocal, (req, res) => {
+
   const { lezioneId } = req.params;
 
   db.get(`SELECT classe_id FROM lezioni WHERE id = ?`, [lezioneId], (err, lezione) => {
@@ -183,7 +255,6 @@ app.post('/lezioni/:lezioneId/sincronizza-presenze', (req, res) => {
 
       const classeId = lezione.classe_id;
 
-      // Inserisce righe di presenze mancanti per studenti nuovi
       const query = `
           INSERT INTO presenze (lezione_id, matricola, classe_id, presente)
           SELECT ?, s.matricola, s.classe_id, 0
@@ -203,7 +274,8 @@ app.post('/lezioni/:lezioneId/sincronizza-presenze', (req, res) => {
 });
 
 /* --- DELETE API --- */
-app.delete('/classi/:id', (req, res) => {
+app.delete('/classi/:id', checkLocal, (req, res) => {
+
     const classeId = req.params.id;
     db.run(`DELETE FROM classi WHERE id = ?`, [classeId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
@@ -212,7 +284,8 @@ app.delete('/classi/:id', (req, res) => {
     });
 });
 
-app.delete('/studenti/:matricola/:classeId', (req, res) => {
+app.delete('/studenti/:matricola/:classeId', checkLocal, (req, res) => {
+
     const { matricola, classeId } = req.params;
     db.run(`DELETE FROM studenti WHERE matricola = ? AND classe_id = ?`, [matricola, classeId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
@@ -221,7 +294,8 @@ app.delete('/studenti/:matricola/:classeId', (req, res) => {
     });
 });
 
-app.delete('/lezioni/:id', (req, res) => {
+app.delete('/lezioni/:id', checkLocal, (req, res) => {
+
     const lezioneId = req.params.id;
     db.run(`DELETE FROM lezioni WHERE id = ?`, [lezioneId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
@@ -231,7 +305,8 @@ app.delete('/lezioni/:id', (req, res) => {
 });
 
 /* --- PATCH API --- */
-app.patch('/presenze/:lezioneId/:classeId/:matricola', (req, res) => {
+app.patch('/presenze/:lezioneId/:classeId/:matricola', checkLocal, (req, res) => {
+
   const { lezioneId, classeId, matricola } = req.params;
   const { presente } = req.body;
 
@@ -248,6 +323,6 @@ app.patch('/presenze/:lezioneId/:classeId/:matricola', (req, res) => {
 });
 
 /* --- START SERVER --- */
-app.listen(PORT, () => {
-    console.log(`Server in ascolto su http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server in ascolto su http://localhost:${PORT} e in LAN su http://<TUO-IP-LAN>:${PORT}`);
 });

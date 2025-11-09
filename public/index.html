@@ -92,31 +92,26 @@
             const matricola = matricolaInput.value.trim();
             const token = tokenInput.value.trim();
 
-            // 1️⃣ Controllo matricola inserita
             if (!matricola) {
                 showError("Compila tutti i campi per riprovare.", matricolaInput);
                 return;
             }
 
-            // 2️⃣ Controllo matricola valida (6 cifre)
             if (!/^\d{6}$/.test(matricola)) {
                 showError("La matricola non è valida. Riprova.", matricolaInput);
                 return;
             }
 
-            // 3️⃣ Controllo token inserito
             if (!token) {
                 showError("Compila tutti i campi per riprovare.", tokenInput);
                 return;
             }
 
-            // 4️⃣ Controllo token valido (6 caratteri alfanumerici)
             if (!/^[A-Za-z0-9]{6}$/.test(token)) {
                 showError("Il token è scaduto. Riprova.", tokenInput);
                 return;
             }
 
-            // ✅ Tutto ok
             clearError();
             // Mostra popup di successo
             const successPopup = document.getElementById("success-popup");
