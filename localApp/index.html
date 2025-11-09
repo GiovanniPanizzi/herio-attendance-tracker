@@ -278,52 +278,47 @@
         }
 
         // --- Presenze ---
-        function openAttendance(lezioneId, className) {
-        // Nasconde tutto il resto
-        classesGrid.style.display = 'none';
-        classDetail.style.display = 'none';
-        addClassBtn.style.display = 'none';
+        async function openAttendance(lezioneId, className) {
+            classesGrid.style.display = 'none';
+            classDetail.style.display = 'none';
+            addClassBtn.style.display = 'none';
+            attendanceModalOverlay.style.display = 'flex';
+            attendanceClassName.textContent = `Presenze - ${className}`;
+            attendanceList.innerHTML = '';
 
-        attendanceClassName.textContent = `Presenze: `; 
-        attendanceList.innerHTML = '';
+            // 🔹 Prima sincronizzi eventuali nuovi studenti
+            await fetch(`http://localhost:3000/lezioni/${lezioneId}/sincronizza-presenze`, { method: 'POST' });
 
-        fetch(`http://localhost:3000/lezioni/${lezioneId}/presenze`)
-            .then(res => res.json())
-            .then(data => {
-                data.forEach(studente => {
-                    const li = document.createElement('li');
+            // 🔹 Poi carichi l'elenco aggiornato
+            fetch(`http://localhost:3000/lezioni/${lezioneId}/presenze`)
+                .then(res => res.json())
+                .then(studenti => {
+                    studenti.forEach(studente => {
+                        const li = document.createElement('li');
+                        li.textContent = `${studente.nome} ${studente.cognome}`;
 
-                    const nomeSpan = document.createElement('span');
-                    nomeSpan.textContent = `${studente.nome} ${studente.cognome}`;
-                    nomeSpan.style.marginRight = '10px';
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = studente.presente === 1;
 
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.checked = studente.presente === 1;
+                        checkbox.onchange = async () => {
+                            await fetch(`http://localhost:3000/presenze/${lezioneId}/${currentClassId}/${studente.matricola}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ presente: checkbox.checked ? 1 : 0 })
+                            });
+                        };
 
-                    const statoSpan = document.createElement('span');
-                    statoSpan.textContent = checkbox.checked ? 'Presente' : 'Assente';
-                    statoSpan.style.marginLeft = '5px';
-
-                    checkbox.addEventListener('change', ()=>{
-                        statoSpan.textContent = checkbox.checked ? 'Presente' : 'Assente';
-                        fetch(`http://localhost:3000/presenze/${lezioneId}/${studente.matricola}`, {
-                            method:'PATCH',
-                            headers:{'Content-Type':'application/json'},
-                            body: JSON.stringify({presente: checkbox.checked ? 1 : 0})
-                        });
+                        li.appendChild(checkbox);
+                        attendanceList.appendChild(li);
                     });
-
-                    li.appendChild(nomeSpan);
-                    li.appendChild(checkbox);
-                    li.appendChild(statoSpan);
-
-                    attendanceList.appendChild(li);
+                })
+                .catch(err => {
+                    console.error(err);
+                    attendanceList.innerHTML = '<li>Errore caricamento presenze</li>';
                 });
+        }
 
-                attendanceModalOverlay.style.display='flex';
-            });
-    }
 
     closeAttendanceBtn.onclick = () => {
         attendanceModalOverlay.style.display = 'none';

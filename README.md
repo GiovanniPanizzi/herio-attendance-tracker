@@ -8,25 +8,29 @@ erDiagram
         int id PK
         string nome
     }
+
     STUDENTI {
         string matricola PK
+        int classe_id PK, FK
         string nome
         string cognome
-        int classe_id FK
     }
+
     LEZIONI {
         int id PK
         int classe_id FK
         string data
     }
+
     PRESENZE {
-        int lezione_id PK,FK
-        string matricola PK,FK
+        int lezione_id PK, FK
+        string matricola PK, FK
+        int classe_id PK, FK
         int presente
     }
 
-    CLASSI ||--o{ STUDENTI : has
-    CLASSI ||--o{ LEZIONI : has
-    LEZIONI ||--o{ PRESENZE : records
-    STUDENTI ||--o{ PRESENZE : attends
+    CLASSI ||--o{ STUDENTI : contiene
+    CLASSI ||--o{ LEZIONI : tiene
+    LEZIONI ||--o{ PRESENZE : registra
+    STUDENTI ||--o{ PRESENZE : partecipa
 ```
