@@ -6,10 +6,13 @@ const os = require('os');
 
 const app = express();
 const PORT = 3000;
-const DB_PATH = path.join(__dirname, 'classes.db');
+const DB_FOLDER = global.DB_FOLDER || __dirname;
+const DB_PATH = path.join(DB_FOLDER, 'classes.db');
 
 app.use(express.json());
 app.use(express.static('public'));
+
+app.use('/dashboard-app', express.static('localApp'));
 
 function checkLocal(req, res, next) {
   const ip = req.ip || req.socket.remoteAddress;

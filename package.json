@@ -1,0 +1,24 @@
+{
+  "name": "registro_presenze_electron",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "electron",
+    "sqlite",
+    "registro"
+  ],
+  "author": "Il Tuo Nome",
+  "license": "ISC",
+  "description": "Applicazione Desktop per la gestione del registro presenze.",
+  "devDependencies": {
+    "electron": "^30.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "sqlite3": "^5.0.0"
+  }
+}
