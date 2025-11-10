@@ -93,7 +93,6 @@
 
     </div>
 
-    <!-- Popup di Successo -->
     <div id="success-popup" class="popup-success">
         <div class="popup-content">
             <h2 class="text-3xl font-bold text-green-600 mb-2">Registrazione completata ✅</h2>
@@ -120,8 +119,6 @@
             const lezioneIdInput = document.getElementById("lezioneId");
             const statusMsg = document.getElementById("status");
             const lessonInfo = document.getElementById("lesson-info");
-    
-            // --- 1. Inizializzazione e Popolamento Campi ---
             
             if (!tokenFromURL || !lezioneIdFromURL) {
                 lessonInfo.textContent = "Errore: Dati mancanti (Token e ID Lezione non trovati).";
@@ -136,7 +133,6 @@
             lezioneIdInput.value = lezioneIdFromURL;
             lessonInfo.textContent = `ID Lezione: ${lezioneIdFromURL}`;
     
-            // --- Funzioni di Utility ---
             function showError(message, input = matricolaInput) { 
                 statusMsg.textContent = message;
                 statusMsg.classList.add("text-red-500");
@@ -157,8 +153,7 @@
                 matricolaInput.classList.remove("input-error");
                 matricolaInput.classList.add("border-gray-300");
             }
-    
-            // --- 2. Logica di Invio Presenza ---
+
             const inviaPresenza = async (e) => {
                 e.preventDefault(); 
                 clearValidationStyles();
@@ -166,8 +161,6 @@
                 const matricola = matricolaInput.value.trim();
                 const token = tokenInput.value.trim();
                 const lezioneId = lezioneIdInput.value;
-                
-                // NON è più necessario calcolare o inviare ipLezione
                 
                 if (!matricola || !/^\d{6}$/.test(matricola)) {
                     showError("Inserisci una matricola valida di 6 cifre.", matricolaInput);
@@ -181,11 +174,11 @@
                 btn.classList.add('opacity-50', 'cursor-not-allowed');
     
                 try {
-                    // Chiama l'endpoint corretto: /verifica-token
+
                     const res = await fetch(API_ENDPOINT, { 
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        // Inviamo solo i tre campi richiesti dal server
+
                         body: JSON.stringify({ matricola, token, lezioneId }) 
                     });
                     
@@ -195,8 +188,8 @@
                         showSuccess(data.message || "Presenza registrata con successo.");
                         
                         document.getElementById("success-popup").classList.add("active");
-                        matricolaInput.value = ''; // Pulisce il campo
-                        clearValidationStyles(); // Pulisce il messaggio di stato prima del popup
+                        matricolaInput.value = '';
+                        clearValidationStyles(); 
                     } else {
                         showError(data.error || "Errore sconosciuto dal server.");
                     }
@@ -211,14 +204,12 @@
             };
             
             document.getElementById('attendance-form').addEventListener('submit', inviaPresenza);
-            
-            // Gestione chiusura popup
+
             document.getElementById('close-success').onclick = () => {
                 document.getElementById("success-popup").classList.remove("active");
                 clearValidationStyles();
             };
-    
-            // Rimuove gli stili di errore quando l'utente modifica un campo
+
             matricolaInput.addEventListener("input", clearValidationStyles);
             
             clearValidationStyles();

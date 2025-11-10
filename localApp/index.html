@@ -240,12 +240,10 @@
                 return alert('Inserisci tutti i dati: Matricola, Nome e Cognome.');
             }
 
-            // NUOVA VALIDAZIONE: Deve essere esattamente 6 cifre, solo numeri
             if (!/^\d{6}$/.test(matricola)) {
                 return alert('La Matricola deve essere composta esattamente da 6 cifre numeriche.');
             }
-            
-            // Rimuovi spazi extra dai nomi per pulizia, ma la matricola è già validata sopra
+
             const trimmedMatricola = matricola.trim(); 
             const trimmedNome = nome.trim();
             const trimmedCognome = cognome.trim();
@@ -256,11 +254,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ matricola: trimmedMatricola, nome: trimmedNome, cognome: trimmedCognome })
                 });
-                
-                // Se la matricola esiste già (errore 500 del server per chiave duplicata)
+
                 if (res.status === 500) {
                     const errorData = await res.json();
-                    // Assumiamo che il server dia un errore chiaro in caso di duplicato
                     if (errorData.error && errorData.error.includes('UNIQUE constraint failed')) {
                         return alert('Errore: Matricola già esistente in questa classe.');
                     }
@@ -293,10 +289,25 @@
             lezioniList.innerHTML='';
             lezioni.forEach(l=>{
                 const li = document.createElement('li');
-                li.textContent = `${l.data}`;
+
+                const rawDate = l.data; 
+
+                const dateObj = new Date(rawDate);
+
+                const formattedDate = dateObj.toLocaleString('it-IT', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false 
+                });
+
+                li.textContent = `${formattedDate}`;
 
                 const deleteBtn=document.createElement('button');
                 deleteBtn.textContent='✖';
+
                 deleteBtn.classList.add('delete-btn');
                 deleteBtn.onclick=async()=>{
                     if(!confirm('Vuoi eliminare questa lezione?')) return;
@@ -311,7 +322,6 @@
                 };
                 li.appendChild(deleteBtn);
 
-                // Clic per aprire presenze
                 li.onclick = (e)=>{
                     if(e.target !== deleteBtn) openAttendance(l.id, classNameEl.textContent);
                 };
@@ -344,7 +354,7 @@
                         checkbox.checked = studente.presente === 1;
 
                         checkbox.onchange = async () => {
-                            await fetch(`http://localhost:3000/presenze/${lezioneId}/${currentClassId}/${studente.matricola}`, {
+                            await fetch(`http://localhost:3000/presenze/${lezioneId}/${studente.matricola}`, { 
                                 method: 'PATCH',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ presente: checkbox.checked ? 1 : 0 })
