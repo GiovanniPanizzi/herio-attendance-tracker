@@ -35,9 +35,16 @@ erDiagram
         string data_creazione
     }
 
+    IP_ADDRESS {
+        int id PK
+        int lezione_id FK
+        string ip 
+    }
+
     CLASSI ||--o{ STUDENTI : contiene
     CLASSI ||--o{ LEZIONI : tiene
     LEZIONI ||--o{ PRESENZE : registra
     STUDENTI ||--o{ PRESENZE : partecipa
     LEZIONI ||--o| TOKENS : ha
+    LEZIONI ||--o{ IP_ADDRESS : registra
 ```

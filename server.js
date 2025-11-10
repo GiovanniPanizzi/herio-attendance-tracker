@@ -2,7 +2,6 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const crypto = require('crypto');
-
 const os = require('os');
 
 const app = express();
@@ -76,6 +75,15 @@ db.serialize(() => {
           data_creazione TEXT NOT NULL,
           FOREIGN KEY (lezione_id) REFERENCES lezioni(id) ON DELETE CASCADE
       )
+  `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ip_address (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lezione_id INTEGER NOT NULL,
+        ip TEXT NOT NULL,
+        UNIQUE(lezione_id, ip), -- evita IP duplicati per la stessa lezione
+        FOREIGN KEY (lezione_id) REFERENCES lezioni(id) ON DELETE CASCADE
+    )
   `);
 });
 
@@ -273,6 +281,66 @@ app.post('/lezioni/:lezioneId/sincronizza-presenze', checkLocal, (req, res) => {
   });
 });
 
+app.post('/verifica-token', (req, res) => {
+  const { token, lezioneId, matricola } = req.body; 
+  const ipStudente = req.ip.replace('::ffff:', ''); 
+
+  if (!token || !lezioneId || !matricola) {
+      return res.status(400).json({ error: 'Token, ID Lezione e matricola sono obbligatori' });
+  }
+
+  const tokenQuery = `
+      SELECT t.lezione_id, l.classe_id
+      FROM tokens t
+      JOIN lezioni l ON l.id = t.lezione_id
+      WHERE t.token = ? AND t.lezione_id = ?`;
+
+  db.get(tokenQuery, [token, lezioneId], (err, row) => {
+      if (err) {
+          console.error(err);
+          return res.status(500).json({ error: 'Errore nel database' });
+      }
+
+      if (!row) {
+          return res.status(404).json({ error: 'Token non valido o non corrispondente alla lezione' });
+      }
+
+      db.get(`SELECT * FROM ip_address WHERE lezione_id = ? AND ip = ?`, [lezioneId, ipStudente], (err, ipRow) => {
+          if (err) return res.status(500).json({ error: 'Errore nel controllo IP' });
+
+          if (ipRow) {
+              // IP già usato
+              return res.status(403).json({ error: 'Questo IP è già stato utilizzato per registrare una presenza' });
+          }
+
+          db.run(`INSERT INTO ip_address (lezione_id, ip) VALUES (?, ?)`, [lezioneId, ipStudente], function(err) {
+              if (err) {
+                  console.error(err);
+                  return res.status(500).json({ error: 'Errore salvando l’IP' });
+              }
+
+              const update = `
+                  UPDATE presenze
+                  SET presente = 1
+                  WHERE lezione_id = ? AND matricola = ? AND classe_id = ?`;
+
+              db.run(update, [row.lezione_id, matricola, row.classe_id], function (err) {
+                  if (err) {
+                      console.error(err);
+                      return res.status(500).json({ error: 'Errore aggiornando la presenza' });
+                  }
+
+                  if (this.changes === 0) {
+                      return res.status(404).json({ error: 'Studente non trovato o non associato a questa lezione' });
+                  }
+
+                  res.json({ success: true, message: 'Presenza registrata con successo' });
+              });
+          });
+      });
+  });
+});
+
 /* --- DELETE API --- */
 app.delete('/classi/:id', checkLocal, (req, res) => {
 
@@ -304,25 +372,47 @@ app.delete('/lezioni/:id', checkLocal, (req, res) => {
     });
 });
 
-/* --- PATCH API --- */
-app.patch('/presenze/:lezioneId/:classeId/:matricola', checkLocal, (req, res) => {
+app.delete('/lezioni/:lezioneId/token', checkLocal, (req, res) => {
+  const { lezioneId } = req.params;
 
-  const { lezioneId, classeId, matricola } = req.params;
+  db.run(`DELETE FROM tokens WHERE lezione_id = ?`, [lezioneId], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true, message: `Token per la lezione ${lezioneId} eliminato` });
+  });
+});
+
+/* --- PATCH API --- */
+app.patch('/presenze/:lezioneId/:matricola', checkLocal, (req, res) => {
+  const { lezioneId, matricola } = req.params;
   const { presente } = req.body;
 
-  db.run(
-    `UPDATE presenze
-     SET presente = ?
-     WHERE lezione_id = ? AND matricola = ? AND classe_id = ?`,
-    [presente, lezioneId, matricola, classeId],
-    function (err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, changes: this.changes });
-    }
-  );
+  const findClassQuery = `
+      SELECT l.classe_id
+      FROM lezioni l
+      JOIN studenti s ON s.classe_id = l.classe_id
+      WHERE l.id = ? AND s.matricola = ?`; // Filtra anche per matricola per sicurezza
+
+  db.get(findClassQuery, [lezioneId, matricola], (err, row) => {
+      if (err || !row) {
+          return res.status(404).json({ error: 'Lezione o Studente non trovato/associato' });
+      }
+      
+      const classeId = row.classe_id;
+
+      // 2. Aggiorna la presenza usando l'ID della classe trovato
+      const updateQuery = `
+          UPDATE presenze
+          SET presente = ?
+          WHERE lezione_id = ? AND matricola = ? AND classe_id = ?`;
+
+      db.run(updateQuery, [presente, lezioneId, matricola, classeId], function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ success: true, changes: this.changes });
+      });
+  });
 });
 
 /* --- START SERVER --- */
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server in ascolto su http://localhost:${PORT} e in LAN su http://<TUO-IP-LAN>:${PORT}`);
+  console.log(`Server in ascolto su http://localhost:${PORT} e in LAN su http://${getLocalIP()}:${PORT}`);
 });

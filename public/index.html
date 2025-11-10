@@ -3,148 +3,226 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro Presenze SIGI</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Registra Presenza | SIGI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        .popup-success {
+            visibility: hidden;
+            opacity: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.3s, visibility 0.3s;
+            z-index: 1000;
+        }
+        .popup-success.active {
+            visibility: visible;
+            opacity: 1;
+        }
+        .popup-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            max-width: 300px;
+        }
+        /* Stili per l'input disabilitato */
+        #token, #lezioneId {
+            background-color: #f3f4f6;
+            cursor: not-allowed;
+            color: #6b7280;
+        }
+        /* Stile per l'errore di validazione */
+        .input-error {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 1px #ef4444;
+        }
+    </style>
 </head>
 <body>
-    <h1>Registro Presenze<br>Sistemi Informativi e Gestione d'Impresa</h1>
-    <h2>Lezione del </h2> <!-- inserimento automatico della data -->
+    <div class="container">
+        <h1 class="text-2xl font-bold mb-2 text-gray-800">Registrazione Presenza</h1>
+        <h2 id="lesson-info" class="text-sm font-medium mb-6 text-indigo-600"></h2>
 
-    <form>
-        <input type="text" name="matricola" id="matricola" placeholder="Matricola" required>
-        <input type="text" name="token" id="token" placeholder="Token" required>
-        <p id="status"></p>
-        <input type="button" id="btn" value="Invia">
-    </form>
+        <form id="attendance-form" class="flex flex-col gap-4">
+            <!-- ID Lezione (Pre-popolato dall'URL) -->
+            <input type="text" id="lezioneId" name="lezioneId" placeholder="ID Lezione" required
+                   class="p-3 border border-gray-300 rounded-lg w-full" readonly>
 
-    <h3>A.A. 2025/2026</h3>
+            <!-- Token (Pre-popolato dall'URL) -->
+            <input type="text" id="token" name="token" placeholder="Token" required
+                   class="p-3 border border-gray-300 rounded-lg w-full" readonly>
 
+            <!-- Matricola -->
+            <input type="text" name="matricola" id="matricola" placeholder="Matricola (es. 123456)" required
+                   class="p-3 border border-gray-300 rounded-lg w-full focus:ring-2 focus:ring-indigo-500 transition">
+            
+            <p id="status" class="text-sm font-semibold h-5"></p>
+
+            <button type="submit" id="btn" 
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition duration-150">
+                Registra Presenza
+            </button>
+        </form>
+
+    </div>
+
+    <!-- Popup di Successo -->
     <div id="success-popup" class="popup-success">
         <div class="popup-content">
-            <h2>Registrazione completata ✅</h2>
-            <p>La tua presenza è stata registrata con successo.</p>
-            <button id="close-success">Chiudi</button>
+            <h2 class="text-3xl font-bold text-green-600 mb-2">Registrazione completata ✅</h2>
+            <p class="text-gray-700 mb-6">La tua presenza è stata registrata con successo.</p>
+            <button id="close-success" 
+                    class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg">
+                Chiudi
+            </button>
         </div>
     </div>
 
-</body>
-<script>
-    const params = new URLSearchParams(window.location.search);
-    const tokenFromURL = params.get('token');
-    if (tokenFromURL) {
-      document.getElementById('token').value = tokenFromURL;
-    }
+    <script>
+        const API_URL = window.location.origin; 
+        const API_ENDPOINT = `${API_URL}/verifica-token`; 
     
-    document.getElementById('btn').onclick = async () => {
-      const matricola = document.getElementById('matricola').value.trim();
-      const token = document.getElementById('token').value.trim();
-      const status = document.getElementById('status');
+        document.addEventListener("DOMContentLoaded", () => {
+            const params = new URLSearchParams(window.location.search);
+            const tokenFromURL = params.get('token');
+            const lezioneIdFromURL = params.get('lezione'); 
     
-      if (!matricola || !token) {
-        status.textContent = "Compila tutti i campi!";
-        return;
-      }
+            const btn = document.getElementById("btn");
+            const matricolaInput = document.getElementById("matricola");
+            const tokenInput = document.getElementById("token");
+            const lezioneIdInput = document.getElementById("lezioneId");
+            const statusMsg = document.getElementById("status");
+            const lessonInfo = document.getElementById("lesson-info");
     
-      try {
-        const res = await fetch('/registra', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ matricola, token })
-        });
-    
-        const data = await res.json();
-        status.textContent = data.msg;
-        status.style.color = data.status === "ok" ? "#27ae60" : "#e74c3c";
-    
-        if (data.status === "ok") {
-          document.getElementById('matricola').value = '';
-        }
-      } catch (e) {
-        console.error(e);
-        status.textContent = "Errore di connessione!";
-        status.style.color = "#e74c3c";
-      }
-    };
-</script>
-<script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const btn = document.getElementById("btn");
-        const matricolaInput = document.getElementById("matricola");
-        const tokenInput = document.getElementById("token");
-        const statusMsg = document.getElementById("status");
-
-        function showError(message, input) {
-            statusMsg.textContent = message;
-            statusMsg.classList.add("show");
-            input.classList.add("error");
-        }
-
-        function clearError() {
-            statusMsg.textContent = "";
-            statusMsg.classList.remove("show");
-            matricolaInput.classList.remove("error");
-            tokenInput.classList.remove("error");
-        }
-
-        btn.addEventListener("click", () => {
-            clearError();
-
-            const matricola = matricolaInput.value.trim();
-            const token = tokenInput.value.trim();
-
-            if (!matricola) {
-                showError("Compila tutti i campi per riprovare.", matricolaInput);
+            // --- 1. Inizializzazione e Popolamento Campi ---
+            
+            if (!tokenFromURL || !lezioneIdFromURL) {
+                lessonInfo.textContent = "Errore: Dati mancanti (Token e ID Lezione non trovati).";
+                lessonInfo.classList.remove('text-indigo-600');
+                lessonInfo.classList.add('text-red-500');
+                btn.disabled = true;
+                btn.classList.add('bg-gray-400', 'cursor-not-allowed');
                 return;
             }
-
-            if (!/^\d{6}$/.test(matricola)) {
-                showError("La matricola non è valida. Riprova.", matricolaInput);
-                return;
+            
+            tokenInput.value = tokenFromURL;
+            lezioneIdInput.value = lezioneIdFromURL;
+            lessonInfo.textContent = `ID Lezione: ${lezioneIdFromURL}`;
+    
+            // --- Funzioni di Utility ---
+            function showError(message, input = matricolaInput) { 
+                statusMsg.textContent = message;
+                statusMsg.classList.add("text-red-500");
+                statusMsg.classList.remove("text-green-600"); 
+                input.classList.add("input-error");
+                input.classList.remove("border-gray-300");
             }
-
-            if (!token) {
-                showError("Compila tutti i campi per riprovare.", tokenInput);
-                return;
+    
+            function showSuccess(message) {
+                statusMsg.textContent = message;
+                statusMsg.classList.add("text-green-600");
+                statusMsg.classList.remove("text-red-500");
             }
-
-            if (!/^[A-Za-z0-9]{6}$/.test(token)) {
-                showError("Il token è scaduto. Riprova.", tokenInput);
-                return;
+            
+            function clearValidationStyles() {
+                statusMsg.textContent = "";
+                statusMsg.classList.remove("text-red-500", "text-green-600");
+                matricolaInput.classList.remove("input-error");
+                matricolaInput.classList.add("border-gray-300");
             }
-
-            clearError();
-            // Mostra popup di successo
-            const successPopup = document.getElementById("success-popup");
-            const closeBtn = document.getElementById("close-success");
-
-            successPopup.classList.add("active");
-
-            // Disabilita temporaneamente il form
-            document.querySelector("form").style.pointerEvents = "none";
-
-            // Chiudi popup e riabilita form
-            closeBtn.addEventListener("click", () => {
-                successPopup.classList.remove("active");
-                document.querySelector("form").style.pointerEvents = "auto";
-                matricolaInput.value = "";
-                tokenInput.value = "";
-            });
-
-        });
-
-        // Rimuove l’errore se l’utente modifica un campo
-        [matricolaInput, tokenInput].forEach(input => {
-            input.addEventListener("input", () => {
-                if (statusMsg.textContent !== "") {
-                    statusMsg.textContent = "";
-                    statusMsg.classList.remove("show");
-                    matricolaInput.classList.remove("error");
-                    tokenInput.classList.remove("error");
+    
+            // --- 2. Logica di Invio Presenza ---
+            const inviaPresenza = async (e) => {
+                e.preventDefault(); 
+                clearValidationStyles();
+    
+                const matricola = matricolaInput.value.trim();
+                const token = tokenInput.value.trim();
+                const lezioneId = lezioneIdInput.value;
+                
+                // NON è più necessario calcolare o inviare ipLezione
+                
+                if (!matricola || !/^\d{6}$/.test(matricola)) {
+                    showError("Inserisci una matricola valida di 6 cifre.", matricolaInput);
+                    return;
                 }
-            });
+                
+                statusMsg.textContent = "Invio in corso...";
+                statusMsg.classList.add("text-gray-500");
+                
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+    
+                try {
+                    // Chiama l'endpoint corretto: /verifica-token
+                    const res = await fetch(API_ENDPOINT, { 
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        // Inviamo solo i tre campi richiesti dal server
+                        body: JSON.stringify({ matricola, token, lezioneId }) 
+                    });
+                    
+                    const data = await res.json();
+                    
+                    if (res.ok) {
+                        showSuccess(data.message || "Presenza registrata con successo.");
+                        
+                        document.getElementById("success-popup").classList.add("active");
+                        matricolaInput.value = ''; // Pulisce il campo
+                        clearValidationStyles(); // Pulisce il messaggio di stato prima del popup
+                    } else {
+                        showError(data.error || "Errore sconosciuto dal server.");
+                    }
+    
+                } catch (e) {
+                    console.error("Errore di connessione o fetch:", e);
+                    showError("Errore di connessione al server.");
+                } finally {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            };
+            
+            document.getElementById('attendance-form').addEventListener('submit', inviaPresenza);
+            
+            // Gestione chiusura popup
+            document.getElementById('close-success').onclick = () => {
+                document.getElementById("success-popup").classList.remove("active");
+                clearValidationStyles();
+            };
+    
+            // Rimuove gli stili di errore quando l'utente modifica un campo
+            matricolaInput.addEventListener("input", clearValidationStyles);
+            
+            clearValidationStyles();
         });
-    });
-
-</script>
-
+    </script>
+</body>
 </html>

@@ -235,20 +235,45 @@
             });
         }
 
-        async function creaStudente(matricola,nome,cognome){
-            if(!matricola || !nome || !cognome) return alert('Inserisci tutti i dati');
-            try{
-                const res = await fetch(`http://localhost:3000/classi/${currentClassId}/studenti`,{
-                    method:'POST',
-                    headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({matricola,nome,cognome})
+        async function creaStudente(matricola, nome, cognome) {
+            if (!matricola || !nome || !cognome) {
+                return alert('Inserisci tutti i dati: Matricola, Nome e Cognome.');
+            }
+
+            // NUOVA VALIDAZIONE: Deve essere esattamente 6 cifre, solo numeri
+            if (!/^\d{6}$/.test(matricola)) {
+                return alert('La Matricola deve essere composta esattamente da 6 cifre numeriche.');
+            }
+            
+            // Rimuovi spazi extra dai nomi per pulizia, ma la matricola è già validata sopra
+            const trimmedMatricola = matricola.trim(); 
+            const trimmedNome = nome.trim();
+            const trimmedCognome = cognome.trim();
+
+            try {
+                const res = await fetch(`http://localhost:3000/classi/${currentClassId}/studenti`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ matricola: trimmedMatricola, nome: trimmedNome, cognome: trimmedCognome })
                 });
-                if(!res.ok) throw new Error();
-                studentModalOverlay.style.display='none';
+                
+                // Se la matricola esiste già (errore 500 del server per chiave duplicata)
+                if (res.status === 500) {
+                    const errorData = await res.json();
+                    // Assumiamo che il server dia un errore chiaro in caso di duplicato
+                    if (errorData.error && errorData.error.includes('UNIQUE constraint failed')) {
+                        return alert('Errore: Matricola già esistente in questa classe.');
+                    }
+                    throw new Error('Errore server sconosciuto.');
+                }
+
+                if (!res.ok) throw new Error();
+                
+                studentModalOverlay.style.display = 'none';
                 fetchStudenti(currentClassId);
-            }catch(err){
+            } catch (err) {
                 console.error(err);
-                alert('Errore aggiunta studente');
+                alert('Errore aggiunta studente. Controlla la console per i dettagli.');
             }
         }
 
@@ -305,10 +330,8 @@
             attendanceClassName.textContent = `Presenze - ${className}`;
             attendanceList.innerHTML = '';
 
-            // 🔹 Prima sincronizzi eventuali nuovi studenti
             await fetch(`http://localhost:3000/lezioni/${lezioneId}/sincronizza-presenze`, { method: 'POST' });
 
-            // 🔹 Poi carichi l'elenco aggiornato
             fetch(`http://localhost:3000/lezioni/${lezioneId}/presenze`)
                 .then(res => res.json())
                 .then(studenti => {
@@ -378,10 +401,10 @@
             studentSurnameInput.value='';
             studentMatricolaInput.focus();
         };
-        createStudentBtn.onclick=()=>creaStudente(
-            studentMatricolaInput.value.trim(),
-            studentNameInput.value.trim(),
-            studentSurnameInput.value.trim()
+        createStudentBtn.onclick = () => creaStudente(
+            studentMatricolaInput.value,
+            studentNameInput.value,
+            studentSurnameInput.value
         );
         studentModalOverlay.onclick=e=>{if(e.target===studentModalOverlay) studentModalOverlay.style.display='none';};
 
@@ -414,31 +437,26 @@
         const closeQRBtn = document.getElementById('closeQRBtn');
 
         let qrInterval = null;
-        let countdownInterval = null; // qui
+        let countdownInterval = null;
 
         scanQRBtn.onclick = () => {
-            // 1. Validazione ID Lezione
             if (!currentLezioneId) { 
                 alert("Errore: ID Lezione non disponibile. Apri prima il registro presenze per una lezione.");
                 return;
             }
-            
-            // Mostra l'overlay e resetta gli elementi
+
             qrTokenOverlay.style.display = 'flex';
             document.getElementById('qrStatus').textContent = 'Generazione in corso...';
             document.getElementById('qrToken').textContent = '---';
             document.getElementById('qrCode').innerHTML = '';
-            
-            // Pulisce eventuali intervalli precedenti
+
             if (qrInterval) clearInterval(qrInterval);
             if (countdownInterval) clearInterval(countdownInterval);
 
             const fetchToken = async () => {
                 try {
-                    // 2. Chiamata alla nuova API POST con l'ID della lezione
                     const res = await fetch(`http://localhost:3000/lezioni/${currentLezioneId}/token`, {
                         method: 'POST'
-                        // Non è necessario inviare un body, l'ID è nel Path Params
                     });
 
                     if (!res.ok) throw new Error('Errore generazione token (API).');
@@ -464,7 +482,7 @@
                     // 5. Gestione del Countdown (25 secondi)
                     let countdown = 25;
                     const timerEl = document.getElementById('qrTimer');
-                    clearInterval(countdownInterval); // Si assicura di fermare il vecchio
+                    clearInterval(countdownInterval);
                     
                     countdownInterval = setInterval(() => {
                         countdown--;
@@ -489,8 +507,9 @@
             qrInterval = setInterval(fetchToken, 25000);
         };
 
-        closeQRBtn.onclick = () => {
+        closeQRBtn.onclick = async () => {
             qrTokenOverlay.style.display = 'none';
+
             if (qrInterval) {
                 clearInterval(qrInterval);
                 qrInterval = null;
@@ -500,6 +519,13 @@
                 countdownInterval = null;
             }
 
+            try {
+                await fetch(`http://localhost:3000/lezioni/${currentLezioneId}/tokens`, {
+                    method: 'DELETE'
+                });
+            } catch (err) {
+                console.error("Errore durante l'eliminazione del token:", err);
+            }
         };
         // --- Avvio ---
         fetchClassi();
