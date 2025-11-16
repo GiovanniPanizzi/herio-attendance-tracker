@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
 body {
     font-family: 'Inter', sans-serif;
     background-color: #f7f9fb;
@@ -8,6 +9,7 @@ body {
     min-height: 100vh;
     margin: 0;
 }
+
 .container {
     background: white;
     padding: 2rem;
@@ -17,6 +19,7 @@ body {
     width: 90%;
     text-align: center;
 }
+
 .popup-success {
     visibility: hidden;
     opacity: 0;
@@ -32,10 +35,12 @@ body {
     transition: opacity 0.3s, visibility 0.3s;
     z-index: 1000;
 }
+
 .popup-success.active {
     visibility: visible;
     opacity: 1;
 }
+
 .popup-content {
     background: white;
     padding: 2rem;
@@ -44,13 +49,15 @@ body {
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
     max-width: 300px;
 }
-/* Stili per l'input disabilitato */
+
+/* Styles for disabled inputs */
 #token, #lezioneId {
     background-color: #f3f4f6;
     cursor: not-allowed;
     color: #6b7280;
 }
-/* Stile per l'errore di validazione */
+
+/* Validation error style */
 .input-error {
     border-color: #ef4444 !important;
     box-shadow: 0 0 0 1px #ef4444;

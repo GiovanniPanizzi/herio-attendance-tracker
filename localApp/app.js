@@ -591,9 +591,6 @@ lessonModalOverlay.onclick=e=>{if(e.target===lessonModalOverlay) lessonModalOver
 document.addEventListener('keydown', (e) => {
     const key = e.key;
 
-    // ------------------------
-    // ESC → chiusura modali
-    // ------------------------
     if (key === 'Escape') {
 
         // Class creation modal
