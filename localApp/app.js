@@ -1,7 +1,7 @@
-// --- Riferimenti DOM ---
+// --- DOM References ---
 const classesGrid = document.getElementById('classesGrid');
 const addClassBtn = document.getElementById('addClassBtn');
-const modalOverlay = document.getElementById('modalOverlay'); // Modal creazione classe
+const classCreationModalOverlay = document.getElementById('modalOverlay'); 
 const newClassNameInput = document.getElementById('newClassName');
 const createClassBtn = document.getElementById('createClassBtn');
 
@@ -9,36 +9,36 @@ const classDetail = document.getElementById('classDetail');
 const classNameEl = document.getElementById('className');
 const backToClassesBtn = document.getElementById('backToClasses');
 
-// Riferimenti per le sottoviste, introdotti nel DOM
+// Subview references
 const studentsViewBtn = document.getElementById('studentsViewBtn');
-const lectionsViewBtn = document.getElementById('lectionsViewBtn');
-const studentsView = document.getElementById('studentsView'); // Nuova sezione Studenti
-const lectionsView = document.getElementById('lectionsView'); // Nuova sezione Lezioni
-const backToClassBtns = document.querySelectorAll('.backToClass'); // Pulsanti per tornare alla vista principale del dettaglio classe
+const lessonsViewBtn = document.getElementById('lessonsViewBtn');
+const studentsView = document.getElementById('studentsView'); 
+const lessonsView = document.getElementById('lessonsView'); 
+const backToClassBtns = document.querySelectorAll('.backToClass'); 
 
 const addStudentBtn = document.getElementById('addStudentBtn');
 const studentList = document.getElementById('studentList');
 
-const studentModalOverlay = document.getElementById('studentModalOverlay'); // Modal aggiunta studente
-const studentMatricolaInput = document.getElementById('studentMatricola');
+const studentModalOverlay = document.getElementById('studentModalOverlay'); 
+const studentIdInput = document.getElementById('studentIdInput'); 
 const studentNameInput = document.getElementById('studentName');
 const studentSurnameInput = document.getElementById('studentSurname');
 const createStudentBtn = document.getElementById('createStudentBtn');
 
-const lezioniList = document.getElementById('lezioniList');
+const lessonsList = document.getElementById('lessonsList');
 const createLessonBtn = document.getElementById('createLessonBtn');
-const lessonModalOverlay = document.getElementById('lessonModalOverlay'); // Modal creazione lezione
+const lessonModalOverlay = document.getElementById('lessonModalOverlay'); 
 const lessonDateTimeInput = document.getElementById('lessonDateTime');
 const confirmLessonBtn = document.getElementById('confirmLessonBtn');
 
-const attendanceModalOverlay = document.getElementById('attendanceModalOverlay'); // Modal presenze
+const attendanceModalOverlay = document.getElementById('attendanceModalOverlay'); 
 const attendanceModal = document.getElementById('attendanceModal');
 const attendanceList = document.getElementById('attendanceList');
 const attendanceClassName = document.getElementById('attendanceTitle');
 const closeAttendanceBtn = document.getElementById('closeAttendanceBtn');
 
 const scanQRBtn = document.getElementById('scanQRBtn');
-const qrTokenOverlay = document.getElementById('qrTokenOverlay'); // Overlay QR Token
+const qrTokenOverlay = document.getElementById('qrTokenOverlay'); 
 const closeQRBtn = document.getElementById('closeQRBtn');
 const qrTokenElement = document.getElementById('qrToken');
 const qrStatusElement = document.getElementById('qrStatus');
@@ -47,15 +47,16 @@ const qrTimerEl = document.getElementById('qrTimer');
 
 
 let currentClassId = null;
-let currentLezioneId = null;
+let currentLessonId = null; 
 
 const classCards = new Map();
 let qrInterval = null;
 let countdownInterval = null;
+let lastViewBeforeAttendance = null;
 
-// --- Funzioni di Controllo Vista (Solo Display) ---
+// --- View Control Functions (Display Only) ---
 
-/** Imposta la vista principale (griglia classi) */
+/** Sets the main view (classes grid) */
 function showClassesGrid() {
     classesGrid.style.display = 'grid';
     addClassBtn.style.display = 'inline-block';
@@ -65,197 +66,183 @@ function showClassesGrid() {
     currentClassId = null;
 }
 
-/** Nasconde tutte le sottoviste, mostra solo i bottoni Studenti/Lezioni */
+/** Hides all subviews, shows only the Students/Lessons buttons */
 function showClassDetailMain() {
-    // Nascondi le sezioni specifiche
     studentsView.style.display = 'none';
-    lectionsView.style.display = 'none';
+    lessonsView.style.display = 'none'; 
 
-    // Mostra i bottoni di navigazione Studenti/Lezioni
     studentsViewBtn.style.display = 'inline-block';
-    lectionsViewBtn.style.display = 'inline-block';
+    lessonsViewBtn.style.display = 'inline-block'; 
 
-    // Nascondi i bottoni "Torna alla classe" (li mostriamo solo nelle sottoviste)
     backToClassBtns.forEach(btn => btn.style.display = 'none');
 
-    // Assicura che i bottoni principali "Torna alle classi" e le viste siano visibili
     backToClassesBtn.style.display = 'inline-block';
 }
 
-/** Apre la vista studenti. */
+/** Opens the students view. */
 function showStudentsView() {
     studentsView.style.display = 'block';
-    lectionsView.style.display = 'none';
+    lessonsView.style.display = 'none'; 
 
-    studentsViewBtn.style.display = 'none'; // Nasconde il proprio bottone
-    lectionsViewBtn.style.display = 'none';
+    studentsViewBtn.style.display = 'none'; 
+    lessonsViewBtn.style.display = 'none'; 
 
-    // Mostra il pulsante "Torna alla classe" all'interno di questa vista
     document.querySelector('#studentsView .backToClass').style.display = 'inline-block';
 }
 
-/** Apre la vista lezioni. */
-function showLectionsView() {
+/** Opens the lessons view. */
+function showLessonsView() { 
     studentsView.style.display = 'none';
-    lectionsView.style.display = 'block';
+    lessonsView.style.display = 'block'; 
 
-    studentsViewBtn.style.display = 'none'; // Nasconde il proprio bottone
-    lectionsViewBtn.style.display = 'none';
+    studentsViewBtn.style.display = 'none'; 
+    lessonsViewBtn.style.display = 'none'; 
 
-    // Mostra il pulsante "Torna alla classe" all'interno di questa vista
-    document.querySelector('#lectionsView .backToClass').style.display = 'inline-block';
+    document.querySelector('#lessonsView .backToClass').style.display = 'inline-block';
 }
 
 
-/** Apre il dettaglio classe */
-function openClassDetail(classeId, classeNome) {
-    currentClassId = classeId;
+/** Opens the class detail view */
+function openClassDetail(classId, className) { 
+    currentClassId = classId;
     classesGrid.style.display = 'none';
     addClassBtn.style.display = 'none';
     classDetail.style.display = 'block';
-    classNameEl.textContent = classeNome;
+    classNameEl.textContent = className;
 
-    showClassDetailMain(); // Inizializza alla vista principale
+    showClassDetailMain(); 
 
-    // Carica gli studenti (con presenze) e le lezioni
-    fetchStudenti(classeId);
-    fetchLezioni(classeId);
+    fetchStudents(classId);
+    fetchLessons(classId);
 }
 
 function closeClassDetail(){
     classDetail.style.display='none';
-    showClassesGrid(); // Torna alla griglia classi
+    showClassesGrid(); 
 }
 
-// --- Classi (CRUD) ---
+// --- Classes (CRUD) ---
 
 function createClassCard(classe){
     const div = document.createElement('div');
     div.classList.add('class-card');
 
-    const nome = document.createElement('h3');
-    nome.textContent = classe.nome;
-    div.appendChild(nome);
+    const nameEl = document.createElement('h3');
+    nameEl.textContent = classe.name;
+    div.appendChild(nameEl);
 
     const badge = document.createElement('span');
     badge.classList.add('badge');
-    badge.textContent = `${classe.studenti || 0} studenti`;
+    badge.textContent = `${classe.student_count || 0} students`;
     div.appendChild(badge);
 
-    // Pulsante elimina classe
     const deleteBtn = document.createElement('button');
     deleteBtn.textContent = '✖';
     deleteBtn.classList.add('delete-btn');
-    // Manteniamo lo stile interno perché non gestiamo il CSS esterno, ma è preferibile farlo nel CSS
     deleteBtn.style.position = 'absolute'; 
     deleteBtn.style.left = '8px';
     deleteBtn.style.bottom = '8px';
     
     deleteBtn.onclick = async (e) => {
         e.stopPropagation();
-        if(!confirm(`Vuoi eliminare la classe "${classe.nome}"?`)) return;
+        if(!confirm(`Do you want to delete the class "${classe.name}"?`)) return;
         try{
-            const res = await fetch(`http://localhost:3000/classi/${classe.id}`, {method:'DELETE'});
+            const res = await fetch(`http://localhost:3000/classes/${classe.id}`, {method:'DELETE'}); 
             if(!res.ok) throw new Error();
-            fetchClassi();
+            fetchClasses();
         }catch(err){
             console.error(err);
-            alert('Errore eliminazione classe');
+            alert('Error deleting class');
         }
     };
     div.appendChild(deleteBtn);
 
-    div.onclick = () => openClassDetail(classe.id, classe.nome);
+    div.onclick = () => openClassDetail(classe.id, classe.name);
     classCards.set(classe.id, div);
     return div;
 }
 
-function loadClasses(classi){
+function loadClasses(classes){ 
     classesGrid.innerHTML = '';
-    // Assicurati che classesGrid usi il display corretto (grid)
     classesGrid.style.display = 'grid'; 
-    classi.forEach(c => classesGrid.appendChild(createClassCard(c)));
+    classes.forEach(c => classesGrid.appendChild(createClassCard(c)));
 }
 
-async function fetchClassi(){
+async function fetchClasses(){ 
     try{
-        const res = await fetch('http://localhost:3000/classi-con-numero-studenti');
+        const res = await fetch('http://localhost:3000/classes-with-student-count');
         if(!res.ok) throw new Error();
         const data = await res.json();
         loadClasses(data);
         addClassBtn.style.display = 'inline-block';
     }catch(err){
         console.error(err);
-        classesGrid.textContent = 'Errore caricamento classi';
+        classesGrid.textContent = 'Error loading classes';
     }
 }
 
-async function creaClasse(nome){
-    if(!nome) return alert('Inserisci un nome valido');
+async function createClass(name){ 
+    if(!name) return alert('Please enter a valid name');
     try{
-        const res = await fetch('http://localhost:3000/classi',{
+        const res = await fetch('http://localhost:3000/classes',{ 
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({nome})
+            body: JSON.stringify({name}) 
         });
         if(!res.ok) throw new Error();
-        modalOverlay.style.display='none'; // Nasconde il modale
-        fetchClassi();
+        classCreationModalOverlay.style.display='none'; 
+        fetchClasses(); 
     }catch(err){
         console.error(err);
-        alert('Errore creazione classe');
+        alert('Error creating class');
     }
 }
 
-// --- Studenti (CRUD) ---
-async function fetchStudenti(classeId){
+// --- Students (CRUD) ---
+async function fetchStudents(classId){ 
     try{
-        // NUOVA API: studenti-con-presenze (Supponiamo che questa API fornisca un campo 'presenze' e l'elenco completo)
-        const res = await fetch(`http://localhost:3000/classi/${classeId}/studenti-con-presenze`);
+        const res = await fetch(`http://localhost:3000/classes/${classId}/students-with-attendance`);
         if(!res.ok) throw new Error();
 
-        const studenti = await res.json();
-        loadStudentList(studenti);
+        const students = await res.json(); 
+        loadStudentList(students);
 
-        // Aggiorna badge della card (usa la lunghezza totale degli studenti)
-        const card = classCards.get(classeId);
+        const card = classCards.get(classId);
         if(card){
             const badge = card.querySelector('.badge');
-            badge.textContent = `${studenti.length} studenti`;
+            badge.textContent = `${students.length} students`;
         }
     }catch(err){
         console.error(err);
-        studentList.innerHTML = '<li>Errore caricamento studenti</li>';
+        studentList.innerHTML = '<li>Error loading students</li>';
     }
 }
 
-function loadStudentList(studenti){
+function loadStudentList(students){ 
     studentList.innerHTML = '';
-    // Ordina studenti per cognome
-    studenti.sort((a, b) => a.cognome.localeCompare(b.cognome));
+    students.sort((a, b) => a.last_name.localeCompare(b.last_name)); 
 
-    studenti.forEach(s=>{
+    students.forEach(s=>{
         const li = document.createElement('li');
         
-        // Contenuto: Matricola - Nome Cognome (Presenze: N)
-        const presenzeCount = s.presenze !== undefined ? s.presenze : 0;
+        const attendanceCount = s.attendance_count !== undefined ? s.attendance_count : 0; 
         li.innerHTML = `
-            ${s.matricola} - ${s.nome} ${s.cognome} 
-            <span class="presenze-count"> (Presenze: ${presenzeCount})</span>
+            ${s.student_id} - ${s.first_name} ${s.last_name} 
+            <span class="presenze-count"> (Attendance: ${attendanceCount})</span>
         `;
         
         const deleteBtn = document.createElement('button');
         deleteBtn.textContent='✖';
         deleteBtn.classList.add('delete-btn');
         deleteBtn.onclick=async()=>{
-            if(!confirm(`Vuoi eliminare lo studente "${s.nome} ${s.cognome}"?`)) return;
+            if(!confirm(`Do you want to delete student "${s.first_name} ${s.last_name}"?`)) return;
             try{
-                const res = await fetch(`http://localhost:3000/studenti/${s.matricola}/${currentClassId}`, { method:'DELETE' });
+                const res = await fetch(`http://localhost:3000/students/${s.student_id}/${currentClassId}`, { method:'DELETE' });
                 if(!res.ok) throw new Error();
-                fetchStudenti(currentClassId);
+                fetchStudents(currentClassId); 
             }catch(err){
                 console.error(err);
-                alert('Errore eliminazione studente');
+                alert('Error deleting student');
             }
         };
         li.appendChild(deleteBtn);
@@ -263,75 +250,74 @@ function loadStudentList(studenti){
     });
 }
 
-async function creaStudente(matricola, nome, cognome) {
-    if (!matricola || !nome || !cognome) {
-        return alert('Inserisci tutti i dati: Matricola, Nome e Cognome.');
+async function createStudent(studentId, firstName, lastName) { 
+    if (!studentId || !firstName || !lastName) {
+        return alert('Please enter all data: Student ID, First Name, and Last Name.');
     }
 
-    if (!/^\d{6}$/.test(matricola)) {
-        return alert('La Matricola deve essere composta esattamente da 6 cifre numeriche.');
+    if (!/^\d{6}$/.test(studentId)) {
+        return alert('Student ID must be exactly 6 numeric digits.');
     }
 
-    const trimmedMatricola = matricola.trim(); 
-    const trimmedNome = nome.trim();
-    const trimmedCognome = cognome.trim();
+    const trimmedStudentId = studentId.trim(); 
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
 
     try {
-        // Usiamo l'API originale POST per la creazione
-        const res = await fetch(`http://localhost:3000/classi/${currentClassId}/studenti`, {
+        const res = await fetch(`http://localhost:3000/classes/${currentClassId}/students`, { 
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ matricola: trimmedMatricola, nome: trimmedNome, cognome: trimmedCognome })
+            body: JSON.stringify({ student_id: trimmedStudentId, first_name: trimmedFirstName, last_name: trimmedLastName }) 
         });
 
         if (res.status === 500) {
             const errorData = await res.json();
             if (errorData.error && errorData.error.includes('UNIQUE constraint failed')) {
-                return alert('Errore: Matricola già esistente in questa classe.');
+                return alert('Error: Student ID already exists in this class.');
             }
-            throw new Error('Errore server sconosciuto.');
+            throw new Error('Unknown server error.');
         }
 
         if (!res.ok) throw new Error();
         
-        studentModalOverlay.style.display = 'none'; // Nasconde il modale
-        fetchStudenti(currentClassId); // Ricarica con la nuova API
+        studentModalOverlay.style.display = 'none'; 
+        fetchStudents(currentClassId); 
     } catch (err) {
         console.error(err);
-        alert('Errore aggiunta studente. Controlla la console per i dettagli.');
+        alert('Error adding student. Check console for details.');
     }
 }
 
-// --- Lezioni (CRUD) ---
-async function fetchLezioni(classeId){
+// --- Lessons (CRUD) ---
+async function fetchLessons(classId){ 
     try{
-        const res = await fetch(`http://localhost:3000/classi/${classeId}/lezioni`);
-        const lezioni = await res.json();
-        loadLezioni(lezioni);
+        const res = await fetch(`http://localhost:3000/classes/${classId}/lessons`);
+        const lessons = await res.json(); 
+        loadLessons(lessons); 
     }catch(err){
         console.error(err);
-        lezioniList.innerHTML='<li>Errore caricamento lezioni</li>';
+        lessonsList.innerHTML='<li>Error loading lessons</li>'; 
     }
 }
 
-function loadLezioni(lezioni){
-    lezioniList.innerHTML='';
-    lezioni.sort((a, b) => new Date(b.data) - new Date(a.data)); // Ordina dalla più recente
+function loadLessons(lessons){ 
+    lessonsList.innerHTML=''; 
+    lessons.sort((a, b) => new Date(b.date) - new Date(a.date)); 
 
-    lezioni.forEach(l=>{
+    lessons.forEach(l=>{
         const li = document.createElement('li');
 
-        const rawDate = l.data; 
+        const rawDate = l.date; 
 
         const dateObj = new Date(rawDate);
 
-        const formattedDate = dateObj.toLocaleString('it-IT', {
+        const formattedDate = dateObj.toLocaleString('en-US', {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
             hour: '2-digit',
             minute: '2-digit',
-            hour12: false 
+            hour12: true 
         });
 
         li.textContent = `${formattedDate}`;
@@ -341,14 +327,14 @@ function loadLezioni(lezioni){
 
         deleteBtn.classList.add('delete-btn');
         deleteBtn.onclick=async()=>{
-            if(!confirm('Vuoi eliminare questa lezione?')) return;
+            if(!confirm('Do you want to delete this lesson?')) return;
             try{
-                const res=await fetch(`http://localhost:3000/lezioni/${l.id}`,{method:'DELETE'});
+                const res=await fetch(`http://localhost:3000/lessons/${l.id}`,{method:'DELETE'}); 
                 if(!res.ok) throw new Error();
-                fetchLezioni(currentClassId);
+                fetchLessons(currentClassId); 
             }catch(err){
                 console.error(err);
-                alert('Errore eliminazione lezione');
+                alert('Error deleting lesson');
             }
         };
         li.appendChild(deleteBtn);
@@ -357,55 +343,55 @@ function loadLezioni(lezioni){
             if(e.target !== deleteBtn) openAttendance(l.id, classNameEl.textContent, formattedDate);
         };
 
-        lezioniList.appendChild(li);
+        lessonsList.appendChild(li); 
     });
 }
 
-// --- Presenze (Gestione Manuale e QR) ---
+// --- Attendance (Manual and QR Management) ---
 
-async function openAttendance(lezioneId, className, formattedDate) {
-    currentLezioneId = lezioneId;
+async function openAttendance(lessonId, className, formattedDate) { 
+    lastViewBeforeAttendance = "lessons";
+    currentLessonId = lessonId; 
     
-    // Gestione Vista: Mostra l'overlay del modale
+    // View Management: Show the modal overlay
     classesGrid.style.display = 'none';
     classDetail.style.display = 'none';
     addClassBtn.style.display = 'none';
-    attendanceModalOverlay.style.display = 'flex'; // Modale presenze
+    attendanceModalOverlay.style.display = 'flex'; 
 
-    attendanceClassName.textContent = `Presenze - ${className} (${formattedDate})`;
-    attendanceList.innerHTML = '<li>Caricamento presenze...</li>';
+    attendanceClassName.textContent = `Attendance - ${className} (${formattedDate})`; 
+    attendanceList.innerHTML = '<li>Loading attendance...</li>'; 
 
     try {
-        // Sincronizzazione presenze (popola la tabella presenze)
-        await fetch(`http://localhost:3000/lezioni/${lezioneId}/sincronizza-presenze`, { method: 'POST' });
+        // Attendance synchronization
+        await fetch(`http://localhost:3000/lessons/${lessonId}/synchronize-attendance`, { method: 'POST' });
 
-        const res = await fetch(`http://localhost:3000/lezioni/${lezioneId}/presenze`);
-        if (!res.ok) throw new Error('Errore caricamento dati presenze');
-        const studenti = await res.json();
+        const res = await fetch(`http://localhost:3000/lessons/${lessonId}/attendance`);
+        if (!res.ok) throw new Error('Error loading attendance data');
+        const students = await res.json(); 
         
-        attendanceList.innerHTML = ''; // Pulisce il messaggio di caricamento
+        attendanceList.innerHTML = ''; 
 
-        studenti.forEach(studente => {
+        students.forEach(student => { 
             const li = document.createElement('li');
-            li.textContent = `${studente.nome} ${studente.cognome} (${studente.matricola})`;
+            li.textContent = `${student.first_name} ${student.last_name} (${student.student_id})`;
 
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
-            checkbox.checked = studente.presente === 1;
+            checkbox.checked = student.is_present === 1; 
 
             checkbox.onchange = async () => {
                 try {
-                    await fetch(`http://localhost:3000/presenze/${lezioneId}/${studente.matricola}`, { 
+                    await fetch(`http://localhost:3000/attendance/${lessonId}/${student.student_id}`, { 
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ presente: checkbox.checked ? 1 : 0 })
+                        body: JSON.stringify({ is_present: checkbox.checked ? 1 : 0 }) 
                     });
-                    // Ricarica la lista studenti in background per aggiornare il conteggio delle presenze
-                    fetchStudenti(currentClassId); 
+                    fetchStudents(currentClassId); 
                 } catch (err) {
-                    console.error("Errore aggiornamento presenza:", err);
-                    alert("Errore nell'aggiornare la presenza.");
-                    checkbox.checked = !checkbox.checked; // Ritorna allo stato precedente
+                    console.error("Attendance update error:", err); 
+                    alert("Error updating attendance."); 
+                    checkbox.checked = !checkbox.checked; 
                 }
             };
 
@@ -414,46 +400,51 @@ async function openAttendance(lezioneId, className, formattedDate) {
         });
     } catch (err) {
         console.error(err);
-        attendanceList.innerHTML = '<li>Errore caricamento presenze</li>';
+        attendanceList.innerHTML = '<li>Error loading attendance</li>';
     }
 }
 
 
 closeAttendanceBtn.onclick = () => {
-    // Gestione Vista: Chiudi il modale presenze
     attendanceModalOverlay.style.display = 'none';
-    
-    // Torna al dettaglio classe se l'ID è noto, altrimenti torna alla griglia principale
-    if (currentClassId) {
+
+    if (lastViewBeforeAttendance === "lessons") {
+        // Torna alla vista lezioni
         classDetail.style.display = 'block';
-        showClassDetailMain();
-    } else {
+        showLessonsView();
+    } 
+    else if (lastViewBeforeAttendance === "students") {
+        classDetail.style.display = 'block';
+        showStudentsView();
+    } 
+    else {
+        // Default di sicurezza
         showClassesGrid();
     }
 };
 
-// --- Gestione QR Code (Token Dinamico) ---
+// --- QR Code Management (Dynamic Token) ---
 
 const fetchTokenAndDisplayQR = async () => {
     try {
-        const res = await fetch(`http://localhost:3000/lezioni/${currentLezioneId}/token`, {
+        const res = await fetch(`http://localhost:3000/lessons/${currentLessonId}/token`, { 
             method: 'POST'
         });
 
-        if (!res.ok) throw new Error('Errore generazione token (API).');
+        if (!res.ok) throw new Error('Token generation error (API).'); 
         const data = await res.json();
 
-        const ip = data.ip_server;
+        const ip = data.server_ip; 
         const token = data.token;
         
-        // Aggiornamento interfaccia
+        // Interface Update
         qrTokenElement.textContent = token;
-        qrStatusElement.textContent = `Connettiti a http://${ip}:3000`;
+        qrStatusElement.textContent = `Connect to http://${ip}:3000`; 
 
         qrCodeElement.innerHTML = '';
 
-        // Dati da codificare nel QR
-        const qrContent = `http://${ip}:3000/?token=${token}&lezione=${currentLezioneId}`;
+        // Data to encode in QR
+        const qrContent = `http://${ip}:3000/?token=${token}&lesson=${currentLessonId}`; 
         new QRCode(qrCodeElement, {
             text: qrContent,
             width: 200,
@@ -463,7 +454,7 @@ const fetchTokenAndDisplayQR = async () => {
             correctLevel : QRCode.CorrectLevel.H
         });
 
-        // Avvia il Countdown (25 secondi)
+        // Start Countdown (25 seconds)
         let countdown = 25;
         clearInterval(countdownInterval);
         
@@ -478,7 +469,7 @@ const fetchTokenAndDisplayQR = async () => {
 
     } catch (e) {
         console.error(e);
-        qrStatusElement.textContent = 'Errore nel caricamento del token. Verifica che il server sia attivo.';
+        qrStatusElement.textContent = 'Error loading token. Check if the server is running.'; 
         qrTokenElement.textContent = '---';
         qrCodeElement.innerHTML = '';
         qrTimerEl.textContent = '--s';
@@ -488,116 +479,214 @@ const fetchTokenAndDisplayQR = async () => {
 };
 
 scanQRBtn.onclick = () => {
-    if (!currentLezioneId) { 
-        alert("Errore: ID Lezione non disponibile. Apri prima il registro presenze per una lezione.");
+    if (!currentLessonId) { 
+        alert("Error: Lesson ID not available. Please open the attendance register for a lesson first."); 
         return;
     }
 
-    // Gestione Vista: QR
+    // View Management: QR
     qrTokenOverlay.style.display = 'flex';
     
-    qrStatusElement.textContent = 'Generazione in corso...';
+    qrStatusElement.textContent = 'Generating...'; 
     qrTokenElement.textContent = '---';
     qrCodeElement.innerHTML = '';
 
-    // Pulisce gli intervalli precedenti
+    // Clear previous intervals
     if (qrInterval) clearInterval(qrInterval);
     if (countdownInterval) clearInterval(countdownInterval);
 
-    // Avvia la generazione del token e l'intervallo di refresh
+    // Start token generation and refresh interval
     fetchTokenAndDisplayQR();
-    qrInterval = setInterval(fetchTokenAndDisplayQR, 25000); // Aggiorna ogni 25 secondi
+    qrInterval = setInterval(fetchTokenAndDisplayQR, 25000); // Refresh every 25 seconds
 };
 
 closeQRBtn.onclick = async () => {
-    // Gestione Vista: Chiudi QR
+    // View Management: Close QR
     qrTokenOverlay.style.display = 'none';
 
-    // Pulisce gli intervalli
+    // Clear intervals
     if (qrInterval) clearInterval(qrInterval);
     if (countdownInterval) clearInterval(countdownInterval);
     qrInterval = null;
     countdownInterval = null;
 
     try {
-        await fetch(`http://localhost:3000/lezioni/${currentLezioneId}/tokens`, {
+        // CORRECTED ENDPOINT: Using /token (singular)
+        await fetch(`http://localhost:3000/lessons/${currentLessonId}/token`, { 
             method: 'DELETE'
         });
     } catch (err) {
-        console.error("Errore durante l'eliminazione del token:", err);
+        console.error("Error deleting token:", err); 
     }
 };
 
 
-// --- Gestione Eventi Principali ---
+// --- Main Event Handlers ---
 
-// Eventi Griglia Classi
+// Class Grid Events
 addClassBtn.onclick = () => {
-    modalOverlay.style.display = 'flex'; // Mostra il modal creazione classe
+    classCreationModalOverlay.style.display = 'flex'; 
     newClassNameInput.value = '';
     newClassNameInput.focus();
 };
-createClassBtn.onclick = () => creaClasse(newClassNameInput.value.trim());
-modalOverlay.onclick = e => { if (e.target === modalOverlay) modalOverlay.style.display = 'none'; };
+createClassBtn.onclick = () => createClass(newClassNameInput.value.trim()); 
+classCreationModalOverlay.onclick = e => { if (e.target === classCreationModalOverlay) classCreationModalOverlay.style.display = 'none'; };
 
 
-// Eventi Navigazione Dettaglio Classe
-backToClassesBtn.onclick = closeClassDetail; // Torna alla griglia principale
+// Class Detail Navigation Events
+backToClassesBtn.onclick = closeClassDetail; 
 
-// Navigazione tra le sottoviste
+// Navigation between subviews
 studentsViewBtn.onclick = showStudentsView;
-lectionsViewBtn.onclick = showLectionsView;
-// Assegna l'evento Torna alla classe (mostra la vista principale del dettaglio) a tutti i bottoni '.backToClass'
+lessonsViewBtn.onclick = showLessonsView; 
 backToClassBtns.forEach(btn => {
     btn.onclick = showClassDetailMain;
 });
 
 
-// Eventi Studenti
+// Student Events
 addStudentBtn.onclick = () => {
-    studentModalOverlay.style.display = 'flex'; // Mostra il modal aggiunta studente
-    studentMatricolaInput.value = '';
+    studentModalOverlay.style.display = 'flex'; 
+    studentIdInput.value = ''; 
     studentNameInput.value = '';
     studentSurnameInput.value = '';
-    studentMatricolaInput.focus();
+    studentIdInput.focus(); 
 };
-createStudentBtn.onclick = () => creaStudente(
-    studentMatricolaInput.value,
+createStudentBtn.onclick = () => createStudent( 
+    studentIdInput.value, 
     studentNameInput.value,
     studentSurnameInput.value
 );
 studentModalOverlay.onclick = e => { if (e.target === studentModalOverlay) studentModalOverlay.style.display = 'none'; };
 
-// Eventi Lezioni
+// Lesson Events
 createLessonBtn.onclick = () => {
-    lessonModalOverlay.style.display = 'flex'; // Mostra il modal creazione lezione
-    // Imposta il valore di default all'ora corrente
+    lessonModalOverlay.style.display = 'flex'; 
     const now = new Date();
     const isoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
     lessonDateTimeInput.value = isoString;
     lessonDateTimeInput.focus();
 };
 confirmLessonBtn.onclick=async()=>{
-    const dataOra=lessonDateTimeInput.value;
-    if(!dataOra) return alert('Inserisci data e ora');
+    const dateTime=lessonDateTimeInput.value; 
+    if(!dateTime) return alert('Please enter date and time'); 
     try{
-        const res=await fetch(`http://localhost:3000/classi/${currentClassId}/lezioni`,{
+        const res=await fetch(`http://localhost:3000/classes/${currentClassId}/lessons`,{ 
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({data:dataOra})
+            body: JSON.stringify({date:dateTime}) 
         });
         if(!res.ok) throw new Error();
-        lessonModalOverlay.style.display='none'; // Nasconde il modale
-        fetchLezioni(currentClassId);
+        lessonModalOverlay.style.display='none'; 
+        fetchLessons(currentClassId); 
     }catch(err){
         console.error(err);
-        alert('Errore creazione lezione');
+        alert('Error creating lesson'); 
     }
 };
 lessonModalOverlay.onclick=e=>{if(e.target===lessonModalOverlay) lessonModalOverlay.style.display='none';};
 
-// --- Avvio ---
+// --- KEYBOARD SHORTCUTS ---
 
-// Inizializza la vista e carica i dati
+document.addEventListener('keydown', (e) => {
+    const key = e.key;
+
+    // ------------------------
+    // ESC → chiusura modali
+    // ------------------------
+    if (key === 'Escape') {
+
+        // Class creation modal
+        if (classCreationModalOverlay.style.display === 'flex') {
+            classCreationModalOverlay.style.display = 'none';
+        }
+
+        // Student modal
+        if (studentModalOverlay.style.display === 'flex') {
+            studentModalOverlay.style.display = 'none';
+        }
+
+        // Lesson modal
+        if (lessonModalOverlay.style.display === 'flex') {
+            lessonModalOverlay.style.display = 'none';
+        }
+
+        // Attendance modal
+        if (attendanceModalOverlay.style.display === 'flex') {
+            attendanceModalOverlay.style.display = 'none';
+        
+            if (lastViewBeforeAttendance === "lessons") {
+                classDetail.style.display = 'block';
+                showLessonsView();
+            } 
+            else if (lastViewBeforeAttendance === "students") {
+                classDetail.style.display = 'block';
+                showStudentsView();
+            } 
+            else {
+                showClassesGrid();
+            }
+        }
+
+        // QR modal
+        if (qrTokenOverlay.style.display === 'flex') {
+            qrTokenOverlay.style.display = 'none';
+            if (qrInterval) clearInterval(qrInterval);
+            if (countdownInterval) clearInterval(countdownInterval);
+        }
+    }
+
+    // ------------------------
+    // ENTER → conferma modali
+    // ------------------------
+    if (key === 'Enter') {
+
+        // CLASS creation
+        if (classCreationModalOverlay.style.display === 'flex') {
+            createClassBtn.click();
+        }
+
+        // STUDENT creation
+        else if (studentModalOverlay.style.display === 'flex') {
+            createStudentBtn.click();
+        }
+
+        // LESSON creation
+        else if (lessonModalOverlay.style.display === 'flex') {
+            confirmLessonBtn.click();
+        }
+    }
+});
+
+studentIdInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (studentIdInput.value.trim().length === 6) {
+            studentNameInput.focus();
+        } else {
+            alert("Student ID must be 6 digits.");
+        }
+    }
+});
+
+studentNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (studentNameInput.value.trim() !== "") {
+            studentSurnameInput.focus();
+        }
+    }
+});
+
+studentSurnameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (studentSurnameInput.value.trim() !== "") {
+            createStudentBtn.click();
+        }
+    }
+});
+
+// --- Initialization ---
 showClassesGrid();
-fetchClassi();
+fetchClasses();

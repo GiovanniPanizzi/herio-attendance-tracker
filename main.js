@@ -23,11 +23,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
     setupAppEnvironment();
-
-    // Avvio il server Express
     const server = require('./server.js');
-
-    // Aspetta 500ms prima di aprire la finestra (piccolo delay)
     setTimeout(() => {
         createWindow();
     }, 500);

@@ -22,16 +22,7 @@ main {
     z-index: -1;
 }
 
-.classes-grid {
-    flex: 1; 
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1.5rem;
-    padding-right: 10px; 
-    overflow: visible;
-}
-
-#studentList, #lezioniList, #attendanceList {
+#studentList, #attendanceList, #lessonsList { 
     flex: 1;
     overflow-y: auto;
     padding-right: 10px;
@@ -208,8 +199,9 @@ main {
     color: #2c3e50;
 }
 
+/* Modificato: lectionsViewBtn -> lessonsViewBtn */
 #backToClasses,
-#addStudentBtn, .backToClass, #studentsViewBtn, #lectionsViewBtn {
+#addStudentBtn, .backToClass, #studentsViewBtn, #lessonsViewBtn { 
     padding: 0.5rem 1rem;
     margin-right: 0.5rem;
     margin-bottom: 1rem;
@@ -222,8 +214,9 @@ main {
     transition: 0.2s;
 }
 
+/* Modificato: lectionsViewBtn -> lessonsViewBtn */
 #backToClasses:hover,
-#addStudentBtn:hover, .backToClass:hover, #studentsViewBtn:hover, #lectionsViewBtn:hover {
+#addStudentBtn:hover, .backToClass:hover, #studentsViewBtn:hover, #lessonsViewBtn:hover { 
     background-color: #2980b9;
 }
 
@@ -272,6 +265,7 @@ main {
     width: 300px;
 }
 
+/* Modificato: studentMatricola -> studentIdInput */
 #studentModal input {
     padding: 0.5rem 1rem;
     border-radius: 10px;
@@ -318,18 +312,20 @@ main {
     color: darkred;
 }
 
-/* Dettaglio lezioni */
-#lezioniContainer {
+/* Dettaglio lezioni - Modificato: lezioniContainer -> lessonsView */
+#lessonsView { 
     padding: 1.5rem;
 }
 
-#lezioniContainer h2 {
+/* Modificato: lezioniContainer -> lessonsView */
+#lessonsView h2 {
     margin-bottom: 1rem;
     font-size: 4rem;
     color: #2c3e50;
 }
 
-#lezioniContainer button {
+/* Modificato: lezioniContainer -> lessonsView */
+#lessonsView button { 
     padding: 0.5rem 1rem;
     margin-bottom: 1rem;
     border: none;
@@ -341,16 +337,19 @@ main {
     transition: 0.2s;
 }
 
-#lezioniContainer button:hover {
+/* Modificato: lezioniContainer -> lessonsView */
+#lessonsView button:hover {
     background-color: #2980b9;
 }
 
-#lezioniList {
+/* Modificato: lezioniList -> lessonsList */
+#lessonsList { 
     list-style: none;
     padding: 0;
 }
 
-#lezioniList li {
+/* Modificato: lezioniList -> lessonsList */
+#lessonsList li { 
     padding: 1rem 1.5rem;
     margin-bottom: 0.8rem;
     background-color: #ecf0f1;
@@ -364,7 +363,8 @@ main {
     transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
-#lezioniList li:hover {
+/* Modificato: lezioniList -> lessonsList */
+#lessonsList li:hover { 
     transform: translateY(-2px);
     box-shadow: 0 6px 12px rgba(0,0,0,0.2);
     background-color: #d6eaff; /* leggera evidenza */
@@ -438,12 +438,13 @@ main {
     font-size: 8rem;
 }
 
-/* Aumentiamo padding e spazi */
-#classDetail, #lezioniContainer {
+/* Aumentiamo padding e spazi - Modificato: lezioniContainer -> lessonsView */
+#classDetail, #lessonsView { 
     padding: 2rem;
 }
 
-#studentList li, #lezioniList li {
+/* Modificato: lezioniList -> lessonsList */
+#studentList li, #lessonsList li { 
     padding: 1rem 1.5rem;
     margin-bottom: 0.8rem;
 }
@@ -471,13 +472,13 @@ button {
 #createStudentBtn,
 #confirmLessonBtn,
 #createLessonBtn,
-.backToClass, #studentsViewBtn, #lectionsViewBtn {
+.backToClass, #studentsViewBtn, #lessonsViewBtn { /* Modificato */
     font-size: 1rem;
     padding: 0.6rem 1.2rem;
 }
 
-/* Lista lezioni e studenti più ariosa */
-#studentList, #lezioniList {
+/* Lista lezioni e studenti più ariosa - Modificato: lezioniList -> lessonsList */
+#studentList, #lessonsList { 
     gap: 0.5rem;
 }
 

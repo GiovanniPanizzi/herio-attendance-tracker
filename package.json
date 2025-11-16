@@ -1,7 +1,7 @@
 {
-  "name": "registro_presenze_electron",
+  "name": "Herio",
   "version": "1.0.0",
-  "description": "Applicazione Desktop per la gestione del registro presenze.",
+  "description": "Desktop application for attendance management over LAN",
   "main": "main.js",
   "author": "Giovanni Panizzi",
   "license": "ISC",
@@ -16,8 +16,8 @@
   "keywords": [
     "electron",
     "sqlite",
-    "registro",
-    "presenze"
+    "lan",
+    "attendance"
   ],
 
   "dependencies": {
@@ -41,7 +41,7 @@
   "config": {
     "forge": {
       "packagerConfig": {
-        "appBundleId": "com.giovannipanizzi.registropresenze",
+        "appBundleId": "com.giovannipanizzi.herio",
         "icon": "icons/herio_light",
         "asar": true,
         "extraResource": [
@@ -66,7 +66,7 @@
           "name": "@electron-forge/maker-squirrel",
           "platforms": ["win32"],
           "config": {
-            "name": "RegistroPresenze"
+            "name": "Herio"
           }
         }
       ]

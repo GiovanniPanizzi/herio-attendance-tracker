@@ -6,153 +6,117 @@ const os = require('os');
 
 const app = express();
 const PORT = 3000;
+// Global variable setup (used by Electron)
 const DB_FOLDER = global.DB_FOLDER || __dirname;
 const DB_PATH = path.join(DB_FOLDER, 'classes.db');
 
+// Determine if the app is packaged (Electron environment)
 const isPackaged = require('electron').app ? require('electron').app.isPackaged : false;
+
+// Define the path for static files (the admin/dashboard UI)
 const localAppPath = isPackaged
   ? path.join(process.resourcesPath, 'localApp')
   : path.join(__dirname, 'localApp');
 
+// --- Middleware Setup ---
 app.use(express.json());
+// Serve static assets from the 'public' folder (e.g., the student QR code scanner page)
 app.use(express.static(path.join(__dirname, 'public')));
+// Serve the main application UI (dashboard)
 app.use('/dashboard-app', express.static(localAppPath));
 
+/**
+ * Middleware to restrict access to local machine/server only.
+ * Used for admin/dashboard endpoints.
+ */
 function checkLocal(req, res, next) {
+    // Note: On Express, req.ip is more reliable than req.socket.remoteAddress
     const ip = req.ip || req.socket.remoteAddress;
-    if (ip === '127.0.0.1' || ip === '::1') {
+    // Check for standard localhost addresses
+    if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') {
         next();
     } else {
-        res.status(403).json({ error: 'Accesso consentito solo in locale' });
+        res.status(403).json({ error: 'Access granted only on the local machine' });
     }
 }
 
+// --- Database Connection ---
 const db = new sqlite3.Database(DB_PATH, (err) => {
-    if (err) return console.error("Errore apertura DB:", err.message);
-    console.log("Database connesso.");
+    if (err) return console.error("Error opening DB:", err.message);
+    console.log("Database connected.");
 });
 
+// --- Database Schema Setup ---
 db.serialize(() => {
-    // Abilita le foreign key in SQLite
+    // Enable foreign key constraints for data integrity
     db.run("PRAGMA foreign_keys = ON");
 
+    // 1. CLASSES Table
     db.run(`
-        CREATE TABLE IF NOT EXISTS classi (
+        CREATE TABLE IF NOT EXISTS classes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL
+            name TEXT NOT NULL
         )
     `);
 
+    // 2. STUDENTS Table (Composite Primary Key: student_id + class_id)
     db.run(`
-        CREATE TABLE IF NOT EXISTS studenti (
-            matricola TEXT NOT NULL,
-            nome TEXT NOT NULL,
-            cognome TEXT NOT NULL,
-            classe_id INTEGER NOT NULL,
-            PRIMARY KEY (matricola, classe_id),
-            FOREIGN KEY (classe_id) REFERENCES classi(id) ON DELETE CASCADE
+        CREATE TABLE IF NOT EXISTS students (
+            student_id TEXT NOT NULL,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            class_id INTEGER NOT NULL,
+            PRIMARY KEY (student_id, class_id),
+            FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
         )
     `);
 
+    // 3. LESSONS Table
     db.run(`
-        CREATE TABLE IF NOT EXISTS lezioni (
+        CREATE TABLE IF NOT EXISTS lessons (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            classe_id INTEGER NOT NULL,
-            data TEXT NOT NULL,
-            FOREIGN KEY (classe_id) REFERENCES classi(id) ON DELETE CASCADE
+            class_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
         )
     `);
 
+    // 4. ATTENDANCE Table (Tracking who was present for which lesson)
     db.run(`
-        CREATE TABLE IF NOT EXISTS presenze (
-          lezione_id INTEGER NOT NULL,
-          matricola TEXT NOT NULL,
-          classe_id INTEGER NOT NULL,
-          presente INTEGER DEFAULT 0,
-          PRIMARY KEY (lezione_id, matricola, classe_id),
-          FOREIGN KEY (lezione_id) REFERENCES lezioni(id) ON DELETE CASCADE,
-          FOREIGN KEY (matricola, classe_id) REFERENCES studenti(matricola, classe_id) ON DELETE CASCADE
+        CREATE TABLE IF NOT EXISTS attendance (
+          lesson_id INTEGER NOT NULL,
+          student_id TEXT NOT NULL,
+          class_id INTEGER NOT NULL,
+          is_present INTEGER DEFAULT 0,
+          PRIMARY KEY (lesson_id, student_id, class_id),
+          FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
+          FOREIGN KEY (student_id, class_id) REFERENCES students(student_id, class_id) ON DELETE CASCADE
       );
     `);
+
+    // 5. TOKENS Table (Stores the QR code token for active lessons)
     db.run(`
       CREATE TABLE IF NOT EXISTS tokens (
           token TEXT PRIMARY KEY,
-          lezione_id INTEGER NOT NULL UNIQUE,
-          data_creazione TEXT NOT NULL,
-          FOREIGN KEY (lezione_id) REFERENCES lezioni(id) ON DELETE CASCADE
+          lesson_id INTEGER NOT NULL UNIQUE,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
       )
   `);
-  db.run(`
-    CREATE TABLE IF NOT EXISTS ip_address (
+
+    // 6. IP_ADDRESSES Table (Logs student IP to prevent duplicate registrations)
+    db.run(`
+    CREATE TABLE IF NOT EXISTS ip_addresses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        lezione_id INTEGER NOT NULL,
-        ip TEXT NOT NULL,
-        UNIQUE(lezione_id, ip), -- evita IP duplicati per la stessa lezione
-        FOREIGN KEY (lezione_id) REFERENCES lezioni(id) ON DELETE CASCADE
+        lesson_id INTEGER NOT NULL,
+        ip_address TEXT NOT NULL,
+        UNIQUE(lesson_id, ip_address),
+        FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
     )
   `);
 });
 
-/* --- GET API --- */
-app.get('/classi', checkLocal, (req, res) => {
-    db.all("SELECT * FROM classi", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
-
-app.get('/classi/:id/studenti', checkLocal, (req, res) => {
-
-    const classeId = req.params.id;
-    db.all("SELECT * FROM studenti WHERE classe_id = ?", [classeId], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
-
-app.get('/lezioni/:lezioneId/presenze', checkLocal, (req, res) => {
-
-  const { lezioneId } = req.params;
-
-  db.all(
-    `SELECT s.matricola, s.nome, s.cognome, 
-            COALESCE(p.presente, 0) as presente
-     FROM studenti s
-     JOIN lezioni l ON s.classe_id = l.classe_id
-     LEFT JOIN presenze p 
-       ON p.lezione_id = l.id AND p.matricola = s.matricola
-     WHERE l.id = ?`,
-    [lezioneId],
-    (err, rows) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(rows);
-    }
-  );
-});
-
-app.get('/classi-con-numero-studenti', checkLocal, (req, res) => {
-
-    const query = `
-        SELECT c.id, c.nome, COUNT(s.matricola) AS studenti
-        FROM classi c
-        LEFT JOIN studenti s ON s.classe_id = c.id
-        GROUP BY c.id, c.nome
-    `;
-    db.all(query, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
-
-app.get('/classi/:id/lezioni', checkLocal, (req, res) => {
-
-    const classeId = req.params.id;
-    db.all("SELECT * FROM lezioni WHERE classe_id = ? ORDER BY data ASC", [classeId], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
-
+// --- Utility: Get Local LAN IP Address ---
 function getLocalIP() {
     const interfaces = os.networkInterfaces();
     const candidates = [];
@@ -160,6 +124,7 @@ function getLocalIP() {
     for (let name in interfaces) {
         for (let iface of interfaces[name]) {
             if (iface.family === 'IPv4' && !iface.internal) {
+                // Avoid self-assigned IPs (APIPA)
                 if (!iface.address.startsWith('169.254.')) {
                     candidates.push(iface.address);
                 }
@@ -167,6 +132,7 @@ function getLocalIP() {
         }
     }
 
+    // Prioritize standard LAN addresses
     const lanIP = candidates.find(ip => ip.startsWith('192.168.') || ip.startsWith('10.'));
     if (lanIP) {
         return lanIP;
@@ -177,287 +143,375 @@ function getLocalIP() {
     }
   
     return '127.0.0.1'; 
-  }
+}
 
-app.post('/lezioni/:lezioneId/token', checkLocal, (req, res) => {
-  const { lezioneId } = req.params;
-  const token = crypto.randomBytes(3).toString('hex').toUpperCase();
-  const dataCreazione = new Date().toISOString();
+/* ----------------------------------- */
+/* --- GET API ---            */
+/* ----------------------------------- */
 
-  // 1. Controlla che la lezione esista
-  db.get('SELECT id, classe_id FROM lezioni WHERE id = ?', [lezioneId], (err, lezione) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (!lezione) return res.status(404).json({ error: 'Lezione non trovata' });
-
-      // 2. Prova a inserire il nuovo token (o a sostituire quello esistente)
-      const query = `
-          INSERT INTO tokens (token, lezione_id, data_creazione) 
-          VALUES (?, ?, ?)
-          ON CONFLICT(lezione_id) DO UPDATE SET token = excluded.token, data_creazione = excluded.data_creazione
-      `;
-      
-      db.run(query, [token, lezioneId, dataCreazione], function(err) {
-          if (err) return res.status(500).json({ error: err.message });
-
-          const ip = getLocalIP();
-          // Restituisce anche l'ID della classe per comodità nella UI
-          res.json({ 
-              token: token, 
-              lezione_id: lezioneId,
-              classe_id: lezione.classe_id,
-              ip_server: ip 
-          });
-      });
-  });
-});
-
-app.get('/classi/:classeId/studenti-con-presenze', checkLocal, async (req, res) => {
-    const classeId = req.params.classeId;
-
-    const sql = `
-        SELECT
-            s.matricola, 
-            s.nome, 
-            s.cognome,
-            -- Conteggia le presenze per questo studente in tutte le lezioni di QUESTA classe
-            (SELECT COUNT(p.presente) 
-             FROM presenze p
-             WHERE p.matricola = s.matricola 
-             AND p.classe_id = s.classe_id -- Presenze devono corrispondere alla classe dello studente
-             AND p.presente = 1) AS presenze
-        FROM studenti s
-        WHERE s.classe_id = ? -- Seleziona solo gli studenti di questa classe
-        ORDER BY s.cognome, s.nome;
-    `;
-    
-    db.all(sql, [classeId], (err, rows) => { // Un solo parametro classeId
+// Get all classes
+app.get('/classes', checkLocal, (req, res) => {
+    db.all("SELECT * FROM classes", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
 });
 
-/* --- POST API --- */
-app.post('/classi', checkLocal, (req, res) => {
-
-    const { nome } = req.body;
-    if (!nome || nome.trim() === '') {
-        return res.status(400).json({ error: 'Il nome della classe è obbligatorio' });
-    }
-
-    const query = `INSERT INTO classi (nome) VALUES (?)`;
-    db.run(query, [nome.trim()], function(err) {
+// Get students for a specific class
+app.get('/classes/:id/students', checkLocal, (req, res) => {
+    const classId = req.params.id;
+    db.all("SELECT * FROM students WHERE class_id = ?", [classId], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ id: this.lastID, nome });
+        res.json(rows);
     });
 });
 
-app.post('/classi/:id/studenti', checkLocal, (req, res) => {
+// Get attendance status for all students in a specific lesson
+app.get('/lessons/:lessonId/attendance', checkLocal, (req, res) => {
+  const { lessonId } = req.params;
 
-    const classeId = req.params.id;
-    const { matricola, nome, cognome } = req.body;
-
-    if (!matricola || !nome || !cognome) {
-        return res.status(400).json({ error: 'Matricola, nome e cognome sono obbligatori' });
-    }
-
-    const query = `INSERT INTO studenti (matricola, nome, cognome, classe_id) VALUES (?, ?, ?, ?)`;
-    db.run(query, [matricola.trim(), nome.trim(), cognome.trim(), classeId], function(err) {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: err.message });
-        }
-        res.json({ matricola, nome, cognome, classe_id: classeId });
-    });
-});
-
-app.post('/classi/:id/lezioni', checkLocal, (req, res) => {
-
-    const classeId = req.params.id;
-    const { data } = req.body;
-
-    if (!data || data.trim() === '') {
-        return res.status(400).json({ error: 'La data e ora della lezione sono obbligatorie' });
-    }
-
-    const query = `INSERT INTO lezioni (classe_id, data) VALUES (?, ?)`;
-    db.run(query, [classeId, data.trim()], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-
-        const lezioneId = this.lastID;
-
-        db.all(`SELECT matricola FROM studenti WHERE classe_id = ?`, [classeId], (err, studenti) => {
-            if (err) return console.error(err);
-
-            const stmt = db.prepare(`INSERT INTO presenze (lezione_id, matricola, classe_id, presente) VALUES (?, ?, ?, 0)`);
-            studenti.forEach(s => stmt.run(lezioneId, s.matricola, classeId));
-
-            stmt.finalize();
-
-            res.json({ id: lezioneId, classe_id: classeId, data });
-        });
-    });
-});
-
-app.post('/lezioni/:lezioneId/sincronizza-presenze', checkLocal, (req, res) => {
-
-  const { lezioneId } = req.params;
-
-  db.get(`SELECT classe_id FROM lezioni WHERE id = ?`, [lezioneId], (err, lezione) => {
+  db.all(
+    `SELECT s.student_id, s.first_name, s.last_name, 
+            COALESCE(p.is_present, 0) as is_present
+     FROM students s
+     JOIN lessons l ON s.class_id = l.class_id
+     LEFT JOIN attendance p 
+       ON p.lesson_id = l.id AND p.student_id = s.student_id
+     WHERE l.id = ?`,
+    [lessonId],
+    (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
-      if (!lezione) return res.status(404).json({ error: 'Lezione non trovata' });
+      res.json(rows);
+    }
+  );
+});
 
-      const classeId = lezione.classe_id;
+// Get all classes with a count of students in each
+app.get('/classes-with-student-count', checkLocal, (req, res) => {
+    const query = `
+        SELECT c.id, c.name, COUNT(s.student_id) AS student_count
+        FROM classes c
+        LEFT JOIN students s ON s.class_id = c.id
+        GROUP BY c.id, c.name
+    `;
+    db.all(query, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
 
+// Get all lessons for a specific class
+app.get('/classes/:id/lessons', checkLocal, (req, res) => {
+    const classId = req.params.id;
+    db.all("SELECT * FROM lessons WHERE class_id = ? ORDER BY date ASC", [classId], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+// API to generate/regenerate a QR code token for a lesson
+app.post('/lessons/:lessonId/token', checkLocal, (req, res) => {
+  const { lessonId } = req.params;
+  // Generate a short, random hex token (6 chars)
+  const token = crypto.randomBytes(3).toString('hex').toUpperCase();
+  const createdAt = new Date().toISOString();
+
+  db.get('SELECT id, class_id FROM lessons WHERE id = ?', [lessonId], (err, lesson) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+
+      // Insert or REPLACE the existing token for this lesson (ON CONFLICT)
       const query = `
-          INSERT INTO presenze (lezione_id, matricola, classe_id, presente)
-          SELECT ?, s.matricola, s.classe_id, 0
-          FROM studenti s
-          WHERE s.classe_id = ?
-          AND NOT EXISTS (
-              SELECT 1 FROM presenze p
-              WHERE p.lezione_id = ? AND p.matricola = s.matricola AND p.classe_id = s.classe_id
-          )
+          INSERT INTO tokens (token, lesson_id, created_at) 
+          VALUES (?, ?, ?)
+          ON CONFLICT(lesson_id) DO UPDATE SET token = excluded.token, created_at = excluded.created_at
       `;
-
-      db.run(query, [lezioneId, classeId, lezioneId], function (err) {
+      
+      db.run(query, [token, lessonId, createdAt], function(err) {
           if (err) return res.status(500).json({ error: err.message });
-          res.json({ success: true });
+
+          const ip = getLocalIP();
+          // Returns data needed to construct the QR code URL (token, lessonId) and server IP
+          res.json({ 
+              token: token, 
+              lesson_id: lessonId,
+              class_id: lesson.class_id,
+              server_ip: ip 
+          });
       });
   });
 });
 
-app.post('/verifica-token', (req, res) => {
-  const { token, lezioneId, matricola } = req.body; 
-  const ipStudente = req.ip.replace('::ffff:', ''); 
+// Get student list with total attendance count for a class
+app.get('/classes/:classId/students-with-attendance', checkLocal, async (req, res) => {
+    const classId = req.params.classId;
 
-  if (!token || !lezioneId || !matricola) {
-      return res.status(400).json({ error: 'Token, ID Lezione e matricola sono obbligatori' });
+    const sql = `
+        SELECT
+            s.student_id, 
+            s.first_name, 
+            s.last_name,
+            -- Subquery to count only the 'present' records (is_present = 1)
+            (SELECT COUNT(p.is_present) 
+             FROM attendance p
+             WHERE p.student_id = s.student_id 
+             AND p.class_id = s.class_id 
+             AND p.is_present = 1) AS attendance_count
+        FROM students s
+        WHERE s.class_id = ?
+        ORDER BY s.last_name, s.first_name;
+    `;
+    
+    db.all(sql, [classId], (err, rows) => { 
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+/* ----------------------------------- */
+/* --- POST API ---           */
+/* ----------------------------------- */
+
+// Create a new class
+app.post('/classes', checkLocal, (req, res) => {
+    const { name } = req.body;
+    if (!name || name.trim() === '') {
+        return res.status(400).json({ error: 'Class name is required' });
+    }
+
+    const query = `INSERT INTO classes (name) VALUES (?)`;
+    db.run(query, [name.trim()], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ id: this.lastID, name });
+    });
+});
+
+// Add a student to a class
+app.post('/classes/:id/students', checkLocal, (req, res) => {
+    const classId = req.params.id;
+    const { student_id, first_name, last_name } = req.body;
+
+    if (!student_id || !first_name || !last_name) {
+        return res.status(400).json({ error: 'Student ID, first name, and last name are required' });
+    }
+
+    const query = `INSERT INTO students (student_id, first_name, last_name, class_id) VALUES (?, ?, ?, ?)`;
+    db.run(query, [student_id.trim(), first_name.trim(), last_name.trim(), classId], function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ student_id, first_name, last_name, class_id: classId });
+    });
+});
+
+// Create a new lesson and pre-fill attendance records for all students
+app.post('/classes/:id/lessons', checkLocal, (req, res) => {
+    const classId = req.params.id;
+    const { date } = req.body;
+
+    if (!date || date.trim() === '') {
+        return res.status(400).json({ error: 'Lesson date and time are required' });
+    }
+
+    const query = `INSERT INTO lessons (class_id, date) VALUES (?, ?)`;
+    db.run(query, [classId, date.trim()], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const lessonId = this.lastID;
+
+        // Automatically create a 'NOT PRESENT' (0) attendance record for every student in the class
+        db.all(`SELECT student_id FROM students WHERE class_id = ?`, [classId], (err, students) => {
+            if (err) return console.error(err);
+
+            const stmt = db.prepare(`INSERT INTO attendance (lesson_id, student_id, class_id, is_present) VALUES (?, ?, ?, 0)`);
+            students.forEach(s => stmt.run(lessonId, s.student_id, classId));
+
+            stmt.finalize();
+
+            res.json({ id: lessonId, class_id: classId, date });
+        });
+    });
+});
+
+// Endpoint to synchronize attendance (add new students who might have been added after lesson creation)
+app.post('/lessons/:lessonId/synchronize-attendance', checkLocal, (req, res) => {
+  const { lessonId } = req.params;
+
+  db.get(`SELECT class_id FROM lessons WHERE id = ?`, [lessonId], (err, lesson) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+
+      const classId = lesson.class_id;
+
+      const query = `
+          INSERT INTO attendance (lesson_id, student_id, class_id, is_present)
+          SELECT ?, s.student_id, s.class_id, 0
+          FROM students s
+          WHERE s.class_id = ?
+          AND NOT EXISTS (
+              SELECT 1 FROM attendance p
+              WHERE p.lesson_id = ? AND p.student_id = s.student_id AND p.class_id = s.class_id
+          )
+      `;
+
+      db.run(query, [lessonId, classId, lessonId], function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ success: true, message: `${this.changes} missing attendance records added.` });
+      });
+  });
+});
+
+// The core attendance registration endpoint (Accessed by students via LAN/QR code scan)
+app.post('/verify-token', (req, res) => {
+  const { token, lessonId, student_id } = req.body; 
+  // Get student's external IP address and clean up IPv6 mapping
+  const studentIp = req.ip.replace('::ffff:', ''); 
+
+  if (!token || !lessonId || !student_id) {
+      return res.status(400).json({ error: 'Token, Lesson ID, and Student ID are required' });
   }
 
+  // 1. Verify token validity and get class_id
   const tokenQuery = `
-      SELECT t.lezione_id, l.classe_id
+      SELECT t.lesson_id, l.class_id
       FROM tokens t
-      JOIN lezioni l ON l.id = t.lezione_id
-      WHERE t.token = ? AND t.lezione_id = ?`;
+      JOIN lessons l ON l.id = t.lesson_id
+      WHERE t.token = ? AND t.lesson_id = ?`;
 
-  db.get(tokenQuery, [token, lezioneId], (err, row) => {
+  db.get(tokenQuery, [token, lessonId], (err, row) => {
       if (err) {
           console.error(err);
-          return res.status(500).json({ error: 'Errore nel database' });
+          return res.status(500).json({ error: 'Database error' });
       }
 
       if (!row) {
-          return res.status(404).json({ error: 'Token non valido o non corrispondente alla lezione' });
+          return res.status(404).json({ error: 'Invalid token or token does not match lesson' });
       }
 
-      db.get(`SELECT * FROM ip_address WHERE lezione_id = ? AND ip = ?`, [lezioneId, ipStudente], (err, ipRow) => {
-          if (err) return res.status(500).json({ error: 'Errore nel controllo IP' });
+      // 2. Check if the IP has already been used for THIS lesson
+      db.get(`SELECT * FROM ip_addresses WHERE lesson_id = ? AND ip_address = ?`, [lessonId, studentIp], (err, ipRow) => {
+          if (err) return res.status(500).json({ error: 'IP check error' });
 
           if (ipRow) {
-              // IP già usato
-              return res.status(403).json({ error: 'Questo IP è già stato utilizzato per registrare una presenza' });
+              // IP already used (prevents one device registering multiple students)
+              return res.status(403).json({ error: 'This IP address has already been used to register attendance' });
           }
 
-          db.run(`INSERT INTO ip_address (lezione_id, ip) VALUES (?, ?)`, [lezioneId, ipStudente], function(err) {
+          // 3. Log the new IP address
+          db.run(`INSERT INTO ip_addresses (lesson_id, ip_address) VALUES (?, ?)`, [lessonId, studentIp], function(err) {
               if (err) {
                   console.error(err);
-                  return res.status(500).json({ error: 'Errore salvando l’IP' });
+                  return res.status(500).json({ error: 'Error saving IP address' });
               }
 
+              // 4. Update the attendance record
               const update = `
-                  UPDATE presenze
-                  SET presente = 1
-                  WHERE lezione_id = ? AND matricola = ? AND classe_id = ?`;
+                  UPDATE attendance
+                  SET is_present = 1
+                  WHERE lesson_id = ? AND student_id = ? AND class_id = ?`;
 
-              db.run(update, [row.lezione_id, matricola, row.classe_id], function (err) {
+              db.run(update, [row.lesson_id, student_id, row.class_id], function (err) {
                   if (err) {
                       console.error(err);
-                      return res.status(500).json({ error: 'Errore aggiornando la presenza' });
+                      return res.status(500).json({ error: 'Error updating attendance record' });
                   }
 
                   if (this.changes === 0) {
-                      return res.status(404).json({ error: 'Studente non trovato o non associato a questa lezione' });
+                      return res.status(404).json({ error: 'Student not found or not associated with this lesson' });
                   }
 
-                  res.json({ success: true, message: 'Presenza registrata con successo' });
+                  res.json({ success: true, message: 'Attendance successfully registered' });
               });
           });
       });
   });
 });
 
-/* --- DELETE API --- */
-app.delete('/classi/:id', checkLocal, (req, res) => {
+/* ----------------------------------- */
+/* --- DELETE API ---          */
+/* ----------------------------------- */
 
-    const classeId = req.params.id;
-    db.run(`DELETE FROM classi WHERE id = ?`, [classeId], function(err) {
+// Delete a class (ON DELETE CASCADE handles students/lessons/attendance)
+app.delete('/classes/:id', checkLocal, (req, res) => {
+    const classId = req.params.id;
+    db.run(`DELETE FROM classes WHERE id = ?`, [classId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        if (this.changes === 0) return res.status(404).json({ error: 'Classe non trovata' });
+        if (this.changes === 0) return res.status(404).json({ error: 'Class not found' });
         res.json({ success: true });
     });
 });
 
-app.delete('/studenti/:matricola/:classeId', checkLocal, (req, res) => {
-
-    const { matricola, classeId } = req.params;
-    db.run(`DELETE FROM studenti WHERE matricola = ? AND classe_id = ?`, [matricola, classeId], function(err) {
+// Delete a student from a specific class
+app.delete('/students/:studentId/:classId', checkLocal, (req, res) => {
+    const { studentId, classId } = req.params;
+    db.run(`DELETE FROM students WHERE student_id = ? AND class_id = ?`, [studentId, classId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        if (this.changes === 0) return res.status(404).json({ error: 'Studente non trovato' });
+        if (this.changes === 0) return res.status(404).json({ error: 'Student not found' });
         res.json({ success: true });
     });
 });
 
-app.delete('/lezioni/:id', checkLocal, (req, res) => {
-
-    const lezioneId = req.params.id;
-    db.run(`DELETE FROM lezioni WHERE id = ?`, [lezioneId], function(err) {
+// Delete a lesson (ON DELETE CASCADE handles attendance/tokens/IP logs)
+app.delete('/lessons/:id', checkLocal, (req, res) => {
+    const lessonId = req.params.id;
+    db.run(`DELETE FROM lessons WHERE id = ?`, [lessonId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        if (this.changes === 0) return res.status(404).json({ error: 'Lezione non trovata' });
+        if (this.changes === 0) return res.status(404).json({ error: 'Lesson not found' });
         res.json({ success: true });
     });
 });
 
-app.delete('/lezioni/:lezioneId/token', checkLocal, (req, res) => {
-  const { lezioneId } = req.params;
+// Manually delete a token (e.g., to force a new QR generation)
+app.delete('/lessons/:lessonId/token', checkLocal, (req, res) => {
+  const { lessonId } = req.params;
 
-  db.run(`DELETE FROM tokens WHERE lezione_id = ?`, [lezioneId], function(err) {
+  db.run(`DELETE FROM tokens WHERE lesson_id = ?`, [lessonId], function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, message: `Token per la lezione ${lezioneId} eliminato` });
+      res.json({ success: true, message: `Token for lesson ${lessonId} deleted` });
   });
 });
 
-/* --- PATCH API --- */
-app.patch('/presenze/:lezioneId/:matricola', checkLocal, (req, res) => {
-  const { lezioneId, matricola } = req.params;
-  const { presente } = req.body;
+/* ----------------------------------- */
+/* --- PATCH API ---           */
+/* ----------------------------------- */
 
+// Manually toggle attendance status (e.g., from the dashboard UI)
+app.patch('/attendance/:lessonId/:studentId', checkLocal, (req, res) => {
+  const { lessonId, studentId } = req.params;
+  const { is_present } = req.body; // Expects 0 or 1
+
+  // 1. Find the class_id associated with the lesson and student for the composite key
   const findClassQuery = `
-      SELECT l.classe_id
-      FROM lezioni l
-      JOIN studenti s ON s.classe_id = l.classe_id
-      WHERE l.id = ? AND s.matricola = ?`; // Filtra anche per matricola per sicurezza
+      SELECT l.class_id
+      FROM lessons l
+      JOIN students s ON s.class_id = l.class_id
+      WHERE l.id = ? AND s.student_id = ?`; 
 
-  db.get(findClassQuery, [lezioneId, matricola], (err, row) => {
+  db.get(findClassQuery, [lessonId, studentId], (err, row) => {
       if (err || !row) {
-          return res.status(404).json({ error: 'Lezione o Studente non trovato/associato' });
+          return res.status(404).json({ error: 'Lesson or Student not found/associated' });
       }
       
-      const classeId = row.classe_id;
+      const classId = row.class_id;
 
-      // 2. Aggiorna la presenza usando l'ID della classe trovato
+      // 2. Update the attendance status
       const updateQuery = `
-          UPDATE presenze
-          SET presente = ?
-          WHERE lezione_id = ? AND matricola = ? AND classe_id = ?`;
+          UPDATE attendance
+          SET is_present = ?
+          WHERE lesson_id = ? AND student_id = ? AND class_id = ?`;
 
-      db.run(updateQuery, [presente, lezioneId, matricola, classeId], function (err) {
+      db.run(updateQuery, [is_present, lessonId, studentId, classId], function (err) {
           if (err) return res.status(500).json({ error: err.message });
           res.json({ success: true, changes: this.changes });
       });
   });
 });
 
-/* --- START SERVER --- */
+/* ----------------------------------- */
+/* --- START SERVER ---        */
+/* ----------------------------------- */
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server in ascolto su http://localhost:${PORT} e in LAN su http://${getLocalIP()}:${PORT}`);
+  const ip = getLocalIP();
+  console.log(`Server listening on http://localhost:${PORT} and on LAN at http://${ip}:${PORT}`);
 });
