@@ -628,7 +628,7 @@ button {
 /* QR Code */
 #qrCode {
     margin-top: 20px;
-    background: white; /* importante per QR */
+    background: white;
     padding: 10px;
     border-radius: 10px;
 }
@@ -657,72 +657,112 @@ button {
     background-color: #d32f2f;
 }
 
-/* ALERT MESSAGE */
-#alert-message-container {
-    background-color: red;
-    display: none;
+/* --- Base container style (hidden by default) --- */
+#alert-message-container,
+#confirm-message-container {
     position: fixed;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-    padding: 1rem 1.5rem;
-    align-items: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 280px;
+    max-width: 90%;
+    padding: 20px 24px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+    display: none;      /* toggled via JS */
     flex-direction: column;
-    border-radius: 10px;
-    top: 20px;
-    right: 20px;
-    z-index: 2000;
+    gap: 16px;
+    font-family: sans-serif;
+    animation: fadeIn 0.2s ease-out;
+    z-index: 9999;
 }
 
-#alertText {
-    color: white;
-    font-size: 1.2rem;
-    font-weight: bold;
-    display: flex;
-    gap: 1rem;
+/* Message text */
+#alertText,
+#confirmText {
+    font-size: 16px;
+    color: #333;
+    line-height: 1.4;
+}
+
+/* --- Buttons --- */
+#closeAlertBtn,
+#confirmYesBtn,
+#confirmNoBtn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: 0.15s;
 }
 
 #closeAlertBtn {
-    background-color: transparent;
+    width: 32px;
+    height: 32px;
     border: none;
-    color: white;
-    font-size: 1.5rem;
+    border-radius: 50%;
+    background: #e5e5e5;
     cursor: pointer;
-    margin-top: 0.5rem;
+    position: relative;
+    transition: background 0.2s ease;
 }
 
+#closeAlertBtn::before,
+#closeAlertBtn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 2px;
+    background: #333;
+    transform-origin: center;
+}
+
+#closeAlertBtn::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+#closeAlertBtn::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* Hover */
 #closeAlertBtn:hover {
-    color: #ddd;
-    transform: scale(1.2);
+    background: #d1d1d1;
 }
 
-/* CONFIRM MESSAGE */
-
+/* Confirm buttons container */
 #confirm-message-container {
     display: none;
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 2000;
 }
 
-#confirmText {
-    background-color: #27ae60;
+#confirmYesBtn {
+    background: #28a745;
     color: white;
-    padding: 1rem 1.5rem;
-    border-radius: 10px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-    font-size: 1.2rem;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+}
+#confirmYesBtn:hover {
+    background: #1f8d39;
 }
 
-#confirmYesBtn, #confirmNoBtn {
-    margin-left: 10px;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 1rem;
-    font-weight: bold;
+#confirmNoBtn {
+    background: #ccc;
+    color: #333;
+}
+#confirmNoBtn:hover {
+    background: #b5b5b5;
+}
+
+/* Fade-in animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -48%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
 }
