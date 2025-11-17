@@ -656,3 +656,73 @@ button {
 #closeQRBtn:hover {
     background-color: #d32f2f;
 }
+
+/* ALERT MESSAGE */
+#alert-message-container {
+    background-color: red;
+    display: none;
+    position: fixed;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    padding: 1rem 1.5rem;
+    align-items: center;
+    flex-direction: column;
+    border-radius: 10px;
+    top: 20px;
+    right: 20px;
+    z-index: 2000;
+}
+
+#alertText {
+    color: white;
+    font-size: 1.2rem;
+    font-weight: bold;
+    display: flex;
+    gap: 1rem;
+}
+
+#closeAlertBtn {
+    background-color: transparent;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    margin-top: 0.5rem;
+}
+
+#closeAlertBtn:hover {
+    color: #ddd;
+    transform: scale(1.2);
+}
+
+/* CONFIRM MESSAGE */
+
+#confirm-message-container {
+    display: none;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 2000;
+}
+
+#confirmText {
+    background-color: #27ae60;
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    font-size: 1.2rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+#confirmYesBtn, #confirmNoBtn {
+    margin-left: 10px;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: bold;
+}

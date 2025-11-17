@@ -9,6 +9,15 @@ const classDetail = document.getElementById('classDetail');
 const classNameEl = document.getElementById('className');
 const backToClassesBtn = document.getElementById('backToClasses');
 
+const alertBox = document.getElementById('alert-message-container');
+const alertText = document.getElementById('alertText');
+const closeAlertBtn = document.getElementById('closeAlertBtn');
+
+const confirmBox = document.getElementById('confirm-message-container');
+const confirmText = document.getElementById('confirmText');
+const confirmYesBtn = document.getElementById('confirmYesBtn');
+const confirmNoBtn = document.getElementById('confirmNoBtn');
+
 // Subview references
 const studentsViewBtn = document.getElementById('studentsViewBtn');
 const lessonsViewBtn = document.getElementById('lessonsViewBtn');
@@ -145,14 +154,15 @@ function createClassCard(classe){
     
     deleteBtn.onclick = async (e) => {
         e.stopPropagation();
-        if(!confirm(`Do you want to delete the class "${classe.name}"?`)) return;
+        const confirm = await askConfirm(`Are you sure you want to delete the class "${classe.name}"? This will also remove all associated students, lessons, and attendance records.`);
+        if(!confirm) return;
         try{
             const res = await fetch(`http://localhost:3000/classes/${classe.id}`, {method:'DELETE'}); 
             if(!res.ok) throw new Error();
             fetchClasses();
         }catch(err){
             console.error(err);
-            alert('Error deleting class');
+            launchAlert('Error deleting class');
         }
     };
     div.appendChild(deleteBtn);
@@ -182,7 +192,7 @@ async function fetchClasses(){
 }
 
 async function createClass(name){ 
-    if(!name) return alert('Please enter a valid name');
+    if(!name) return launchAlert('Please enter a valid name');
     try{
         const res = await fetch('http://localhost:3000/classes',{ 
             method:'POST',
@@ -194,7 +204,7 @@ async function createClass(name){
         fetchClasses(); 
     }catch(err){
         console.error(err);
-        alert('Error creating class');
+        launchAlert('Error creating class');
     }
 }
 
@@ -235,14 +245,15 @@ function loadStudentList(students){
         deleteBtn.textContent='✖';
         deleteBtn.classList.add('delete-btn');
         deleteBtn.onclick=async()=>{
-            if(!confirm(`Do you want to delete student "${s.first_name} ${s.last_name}"?`)) return;
+            const confirm = await askConfirm(`Do you want to delete student "${s.first_name} ${s.last_name}"?`);
+            if(!confirm) return;
             try{
                 const res = await fetch(`http://localhost:3000/students/${s.student_id}/${currentClassId}`, { method:'DELETE' });
                 if(!res.ok) throw new Error();
                 fetchStudents(currentClassId); 
             }catch(err){
                 console.error(err);
-                alert('Error deleting student');
+                launchAlert('Error deleting student');
             }
         };
         li.appendChild(deleteBtn);
@@ -252,11 +263,11 @@ function loadStudentList(students){
 
 async function createStudent(studentId, firstName, lastName) { 
     if (!studentId || !firstName || !lastName) {
-        return alert('Please enter all data: Student ID, First Name, and Last Name.');
+        return launchAlert('Please enter all data: Student ID, First Name, and Last Name.');
     }
 
     if (!/^\d{6}$/.test(studentId)) {
-        return alert('Student ID must be exactly 6 numeric digits.');
+        return launchAlert('Student ID must be exactly 6 numeric digits.');
     }
 
     const trimmedStudentId = studentId.trim(); 
@@ -273,18 +284,18 @@ async function createStudent(studentId, firstName, lastName) {
         if (res.status === 500) {
             const errorData = await res.json();
             if (errorData.error && errorData.error.includes('UNIQUE constraint failed')) {
-                return alert('Error: Student ID already exists in this class.');
+                return launchAlert('Error: Student ID already exists in this class.');
             }
             throw new Error('Unknown server error.');
         }
 
-        if (!res.ok) throw new Error();
+        if (!res.ok) {throw new Error();}
         
         studentModalOverlay.style.display = 'none'; 
         fetchStudents(currentClassId); 
     } catch (err) {
         console.error(err);
-        alert('Error adding student. Check console for details.');
+        launchAlert('Error adding student. Check console for details.');
     }
 }
 
@@ -327,14 +338,15 @@ function loadLessons(lessons){
 
         deleteBtn.classList.add('delete-btn');
         deleteBtn.onclick=async()=>{
-            if(!confirm('Do you want to delete this lesson?')) return;
+            const confirm = await askConfirm('Are you sure you want to delete this lesson? This will also remove all associated attendance records.');
+            if(!confirm) return;
             try{
                 const res=await fetch(`http://localhost:3000/lessons/${l.id}`,{method:'DELETE'}); 
                 if(!res.ok) throw new Error();
                 fetchLessons(currentClassId); 
             }catch(err){
                 console.error(err);
-                alert('Error deleting lesson');
+                launchAlert('Error deleting lesson');
             }
         };
         li.appendChild(deleteBtn);
@@ -390,7 +402,7 @@ async function openAttendance(lessonId, className, formattedDate) {
                     fetchStudents(currentClassId); 
                 } catch (err) {
                     console.error("Attendance update error:", err); 
-                    alert("Error updating attendance."); 
+                    launchAlert("Error updating attendance."); 
                     checkbox.checked = !checkbox.checked; 
                 }
             };
@@ -480,7 +492,7 @@ const fetchTokenAndDisplayQR = async () => {
 
 scanQRBtn.onclick = () => {
     if (!currentLessonId) { 
-        alert("Error: Lesson ID not available. Please open the attendance register for a lesson first."); 
+        launchAlert("Error: Lesson ID not available. Please open the attendance register for a lesson first."); 
         return;
     }
 
@@ -569,7 +581,7 @@ createLessonBtn.onclick = () => {
 };
 confirmLessonBtn.onclick=async()=>{
     const dateTime=lessonDateTimeInput.value; 
-    if(!dateTime) return alert('Please enter date and time'); 
+    if(!dateTime) return launchAlert('Please enter date and time'); 
     try{
         const res=await fetch(`http://localhost:3000/classes/${currentClassId}/lessons`,{ 
             method:'POST',
@@ -581,7 +593,7 @@ confirmLessonBtn.onclick=async()=>{
         fetchLessons(currentClassId); 
     }catch(err){
         console.error(err);
-        alert('Error creating lesson'); 
+        launchAlert('Error creating lesson'); 
     }
 };
 lessonModalOverlay.onclick=e=>{if(e.target===lessonModalOverlay) lessonModalOverlay.style.display='none';};
@@ -661,7 +673,7 @@ studentIdInput.addEventListener('keydown', (e) => {
         if (studentIdInput.value.trim().length === 6) {
             studentNameInput.focus();
         } else {
-            alert("Student ID must be 6 digits.");
+            launchAlert("Student ID must be 6 digits.");
         }
     }
 });
@@ -683,6 +695,42 @@ studentSurnameInput.addEventListener('keydown', (e) => {
         }
     }
 });
+
+/* ALERT MESSAGE */
+closeAlertBtn.onclick = () => {
+    alertBox.style.display = 'none';
+    alertText.textContent = '';
+};
+
+const launchAlert = (message) => {
+    alertText.textContent = message;
+    alertBox.style.display = 'flex';
+}
+
+/* CONFIRM DIALOG */
+const askConfirm = (message) => {
+    return new Promise((resolve) => {
+        confirmText.textContent = message;
+        confirmBox.style.display = 'flex';
+
+        const cleanup = () => {
+            confirmBox.style.display = 'none';
+            confirmText.textContent = '';
+            confirmYesBtn.onclick = null;
+            confirmNoBtn.onclick = null;
+        };
+
+        confirmYesBtn.onclick = () => {
+            cleanup();
+            resolve(true); 
+        };
+
+        confirmNoBtn.onclick = () => {
+            cleanup();
+            resolve(false); 
+        };
+    });
+};
 
 // --- Initialization ---
 showClassesGrid();
