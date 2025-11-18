@@ -30,6 +30,13 @@
     <main>
         <div id="classes" class="container">
             <ul id="classes-list">
+                <!--
+                <li id="class-card">
+                    <span id="class-card-name"></span>
+                    <span id="class-card-student-count"></span>
+                    <button id="delete-class-btn" class="button"> &times; </button>
+                </li>
+                 -->
             </ul>
         </div>
     
@@ -107,13 +114,15 @@
 
     <div id="alert-message-container">
         <span id="alert-text"></span>
-        <button id="close-alert-btn"></button> 
+        <button id="close-alert-btn" class="button"> &times; </button> 
     </div>
 
     <div id="confirm-message-container">
         <span id="confirm-text"></span>
-        <button id="confirm-yes-btn">Yes</button>
-        <button id="confirm-no-btn">No</button>
+        <div id="confirm-buttons">
+            <button id="confirm-yes-btn" class="button">Yes</button>
+            <button id="confirm-no-btn" class="button">No</button>
+        </div>
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
