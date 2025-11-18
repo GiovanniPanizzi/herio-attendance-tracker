@@ -3,90 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="style.css">
-    <title>Attendance Register</title>
+    <link rel="stylesheet" href="styles.css">
+    <title>Herio</title>
 </head>
 <body>
     <header>
-        Attendance Register
-        <button id="addClassBtn">+</button>
+        <div id="classes-header">
+            <h1 id="classes-title">Classes</h1>
+            <button id="add-class-btn" class="button"> &plus; </button>
+        </div>
+
+        <div id="class-header">
+            <button id="back-to-classes-btn" class="button">  &larr; </button>
+            <h1 id="class-title"></h1>
+            <button id="change-class-name-btn" class="button"></button>
+            <button id="switch-detail-btn"></button>
+        </div>
+
+        <div id="lesson-header">
+            <button id="back-to-lessons-btn" class="button"> &larr; </button>
+            <h1 id="lesson-title"></h1>
+            <button id="qr-lesson-modal-btn" class="button"> QR </button>
+        </div>
     </header>
     
     <main>
-        <div class="classes-grid" id="classesGrid"></div>
+        <div id="classes" class="container">
+            <ul id="classes-list">
+            </ul>
+        </div>
+    
+        <div id="class-detail" class="container">
+            <div id="students-panel">
+                <button id="add-student-btn" class="button"> &plus; </button>
+                <button id="qr-class-modal-btn" class="button"> QR </button>
+                <table id="students-table" class="students-table">
+                    <thead>
+                        <tr>
+                            <th>Student ID</th>
+                            <th>First Name</th>
+                            <th>Last Name</th>
+                            <th>Attendance</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+                
+                <div id="qr-class-modal" class="modal-overlay">
+                    <div class="modal-content">
+                        <span id="class-qr-code"></span>
+                        <table id="qr-class-students-table" class="students-table">
+                            <thead>
+                                <tr>
+                                    <th>Student ID</th>
+                                    <th>First Name</th>
+                                    <th>Last Name</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
+                        <button id="add-students-to-class-btn" class="button"> Add students </button>
+                        <button id="close-qr-class-modal-btn" class="button"> &times; </button>
+                    </div>
+                </div>
+            </div>
 
-        <div id="modalOverlay" class="modal-overlay">
-            <div id="modal" class="modal">
-                <input type="text" id="newClassName" placeholder="Class Name" />
-                <button id="createClassBtn">Create Class</button>
+            <div id="lessons-panel">
+                <button id="add-lesson-btn" class="button"> &plus; </button>
+                <ul id="lessons-list">
+                </ul>
             </div>
         </div>
 
-        <div id="classDetail" style="display:none;">
-            <h2 id="className"></h2>
-            <button id="backToClasses">← Back to Classes</button>
-            
-            <button id="studentsViewBtn">Show Students</button>
-            <button id="lessonsViewBtn">Show Lessons</button>
-            
-            <div id="studentsView" style="display:none;">
-                <h3>Students</h3>
-                <button id="addStudentBtn">Add Student</button>
-                <ul id="studentList"></ul>
-                <button class="backToClass">Back to Class</button>
-            </div>
-            
-            <div id="lessonsView" style="display:none;"> 
-                <h3>Lessons</h3>
-                <button id="createLessonBtn">Create Lesson</button>
-                <ul id="lessonsList"></ul> <button class="backToClass">Back to Class</button>
-            </div>
-        </div>
+        <div id="lesson-detail" class="container">
 
-        <div id="studentModalOverlay" class="modal-overlay" style="display:none;">
-            <div id="studentModal" class="modal">
-                <input type="text" id="studentIdInput" placeholder="Student ID (e.g., 123456)" /> <input type="text" id="studentName" placeholder="First Name" />
-                <input type="text" id="studentSurname" placeholder="Last Name" />
-                <button id="createStudentBtn">Add Student</button>
-            </div>
-        </div>
+            <table id="attendance-students-table" class="students-table">
+                <thead>
+                    <tr>
+                        <th>Student ID</th>
+                        <th>First Name</th>
+                        <th>Last Name</th>
+                        <th>Attendance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
 
-        <div id="lessonModalOverlay" class="modal-overlay" style="display:none;">
-            <div id="lessonModal" class="modal">
-                <input type="datetime-local" id="lessonDateTime" />
-                <button id="confirmLessonBtn">Create</button>
-            </div>
-        </div>
-
-        <div id="attendanceModalOverlay" class="modal-overlay" style="display:none;">
-            <div id="attendanceModal" class="modal">
-                <h2 id="attendanceTitle"></h2>
-                <button id="scanQRBtn">QR Code</button>
-                <ul id="attendanceList"></ul>
-                <button id="closeAttendanceBtn">Close</button>
-            </div>
-        </div>
-
-        <div id="qrTokenOverlay" class="modal-overlay" style="display:none;">
-            <div class="qr-container">
-                <div id="qrTimer">25s</div>
-                <div id="qrToken">---</div>
-                <div id="qrCode"></div>
-                <div id="qrStatus"></div>
-                <button id="closeQRBtn">Close</button>
+            <div id="lesson-qr-modal-overlay" class="modal-overlay">
+                <div class="qr-container">
+                    <div id="lesson-qr-timer">25s</div>
+                    <div id="lesson-qr-token">---</div>
+                    <div id="lesson-qr-code"></div>
+                    <button id="close-lesson-qr-btn" class="button"> Close </button>
+                </div>
             </div>
         </div>
     </main>
 
     <div id="alert-message-container">
-        <span id="alertText"></span>
-        <button id="closeAlertBtn"></button> 
+        <span id="alert-text"></span>
+        <button id="close-alert-btn"></button> 
     </div>
 
     <div id="confirm-message-container">
-        <span id="confirmText"></span>
-        <button id="confirmYesBtn">Yes</button>
-        <button id="confirmNoBtn">No</button>
+        <span id="confirm-text"></span>
+        <button id="confirm-yes-btn">Yes</button>
+        <button id="confirm-no-btn">No</button>
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
