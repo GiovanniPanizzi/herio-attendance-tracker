@@ -1,0 +1,65 @@
+name: Electron Forge Release
+
+# This workflow runs only when a new tag is created (e.g., v1.0.0)
+on:
+  push:
+    tags:
+      - 'v*' # Activates for any tag starting with 'v'
+
+jobs:
+  # The main job for creating the release
+  release:
+    # --- FIX START: Explicitly grant write access to the GITHUB_TOKEN ---
+    permissions:
+      contents: write
+    # ------------------------------------------------------------------
+    # The matrix strategy allows this job to run in parallel on different configurations
+    strategy:
+      # Do not fail the entire job if one platform fails
+      fail-fast: false 
+      matrix:
+        include:
+          # macOS configuration
+          - os: macos-latest
+            platform: darwin
+          # Windows configuration
+          - os: windows-latest
+            platform: win32
+          # Linux configuration (Debian/RPM)
+          - os: ubuntu-latest
+            platform: linux
+
+    # Specifies the runner based on the platform
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20 
+
+      - name: Install (npm ci) Dependencies for CI
+        # Installs dependencies using 'npm ci' for better consistency in CI environments.
+        # This is often more stable than 'npm install'.
+        run: npm ci
+
+      - name: Compile (npm run make)
+        # Executes the 'make' script, passing the correct platform (darwin, win32, or linux)
+        # This creates the final packages in the 'out/make' directory
+        run: npm run make -- --platform=${{ matrix.platform }}
+
+      - name: Create and Upload Release to GitHub
+        # This step only runs if the trigger is a tag (i.e., a release)
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          # The release name will automatically be the tag name (e.g., v1.0.0)
+          # The release body is a generic text, but you can customize it.
+          body: "Automatic release for Herio, version ${{ github.ref_name }}."
+          # Uploads all generated files in the 'out/make' folder
+          files: out/make/**/*
+          # The token is required for upload authorization
+          token: ${{ secrets.GITHUB_TOKEN }}

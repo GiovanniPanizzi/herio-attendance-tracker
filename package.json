@@ -1,0 +1,75 @@
+{
+  "name": "Herio",
+  "version": "1.0.0",
+  "description": "Desktop application for attendance management over LAN",
+  "main": "main.js",
+  "author": "Giovanni Panizzi",
+  "license": "ISC",
+
+  "scripts": {
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+
+  "keywords": [
+    "electron",
+    "sqlite",
+    "lan",
+    "attendance"
+  ],
+
+  "dependencies": {
+    "express": "^4.19.2",
+    "sqlite3": "^5.0.0",
+    "electron-squirrel-startup": "^1.0.1"
+  },
+
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "@electron-forge/cli": "^7.10.2",
+    "@electron-forge/maker-zip": "^7.10.2",
+    "@electron-forge/maker-deb": "^7.10.2",
+    "@electron-forge/maker-rpm": "^7.10.2",
+    "@electron-forge/maker-squirrel": "^7.10.2",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.10.2",
+    "@electron-forge/plugin-fuses": "^7.10.2",
+    "@electron/fuses": "^1.8.0"
+  },
+
+  "config": {
+    "forge": {
+      "packagerConfig": {
+        "appBundleId": "com.giovannipanizzi.herio",
+        "icon": "icons/herio_light",
+        "asar": true,
+        "extraResource": [
+          "localApp",
+          "public"
+        ]
+      },
+      "makers": [
+        {
+          "name": "@electron-forge/maker-zip",
+          "platforms": ["darwin", "win32"]
+        },
+        {
+          "name": "@electron-forge/maker-deb",
+          "config": {}
+        },
+        {
+          "name": "@electron-forge/maker-rpm",
+          "config": {}
+        },
+        {
+          "name": "@electron-forge/maker-squirrel",
+          "platforms": ["win32"],
+          "config": {
+            "name": "Herio"
+          }
+        }
+      ]
+    }
+  }
+}
