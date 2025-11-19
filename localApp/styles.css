@@ -1,260 +1,63 @@
 /* =============================
-   VARIABILI GLOBALI
+   GLOBAL VARIABLES
 ============================= */
 :root {
-    --color-bg: #f4f5f7;
-    --color-bg-panel: #fff;
-    --color-bg-hover: #fafafa;
-    --color-bg-table-header: #f0f0f0;
-    --color-btn: #4a90e2;
+    --color-primary: #f4f4f4;
+    --color-secondary: #4a90e2;
     --color-btn-hover: #357abd;
-    --color-btn-active: #2a5d9f;
     --color-text: #333;
-    --color-alert: #fffbcc;
-    --color-confirm: #e3fff9;
-    --color-border: #ddd;
 
     --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    --font-size-title: 1.5rem;
     --font-size-normal: 1rem;
     --font-weight-normal: 400;
     --font-weight-bold: 600;
 
-    --spacing-xs: 4px;
     --spacing-sm: 8px;
     --spacing-md: 12px;
     --spacing-lg: 20px;
-    --spacing-xl: 30px;
     --border-radius: 8px;
 }
 
 /* =============================
-   RESET BASE
+   RESET & BASE STYLES
 ============================= */
 * {
     box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+    margin: var(--spacing-sm);
+    padding: var(--spacing-md);
     font-family: var(--font-main);
 }
 
 body {
     background-color: var(--color-bg);
     color: var(--color-text);
-    line-height: 1.5;
 }
 
 /* =============================
-   LAYOUT PRINCIPALE
+   LAYOUT STRUCTURE
 ============================= */
 header {
     display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-md);
-    background-color: var(--color-bg-panel);
-    border-bottom: 1px solid var(--color-border);
+    flex-direction: row;
 }
 
-main {
-    padding: var(--spacing-lg);
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-lg);
-}
-
-/* =============================
-   HEADERS
-============================= */
-#classes-header,
-#class-header,
-#lesson-header {
+/* RESET */
+.header {
     display: none;
-    align-items: center;
-    justify-content: space-between;
 }
 
-#classes-title,
-#class-title,
-#lesson-title {
-    font-size: var(--font-size-title);
-    font-weight: var(--font-weight-bold);
-}
-
-/* =============================
-   BUTTONS
-============================= */
-.button {
-    background-color: var(--color-btn);
-    color: #fff;
-    border: none;
-    padding: var(--spacing-xs) var(--spacing-md);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-size: var(--font-size-normal);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.2s ease;
-}
-
-.button:hover { background-color: var(--color-btn-hover); }
-.button:active { background-color: var(--color-btn-active); }
-
-/* =============================
-   CARDS / GRID CLASSES
-============================= */
-#classes-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: var(--spacing-lg);
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.card {
-    background-color: var(--color-bg-panel);
-    border-radius: var(--border-radius);
-    padding: var(--spacing-md);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    transition: transform 0.15s ease, box-shadow 0.2s ease;
-}
-
-.card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 12px rgba(0,0,0,0.12);
-}
-
-.card span {
-    font-size: var(--font-size-normal);
-    font-weight: var(--font-weight-bold);
-    margin-bottom: var(--spacing-sm);
-}
-
-.card button {
-    align-self: flex-end;
-    background-color: var(--color-btn);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: 0.9rem;
-}
-
-.card button:hover {
-    background-color: var(--color-btn-hover);
-}
-
-/* =============================
-   CONTAINERS
-============================= */
 .container {
     display: none;
-    flex-direction: column;
-    gap: var(--spacing-md);
 }
 
-/* =============================
-   TABLES
-============================= */
-.students-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: var(--spacing-sm);
+.pop-up {
+    display: none;
 }
 
-.students-table th,
-.students-table td {
-    padding: var(--spacing-sm);
-    text-align: left;
-    border-bottom: 1px solid #eee;
-}
-
-.students-table th {
-    background-color: var(--color-bg-table-header);
-    font-weight: var(--font-weight-bold);
-}
-
-.students-table tr:hover {
-    background-color: var(--color-bg-hover);
-}
-
-/* =============================
-   MODALS
-============================= */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.4);
     display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
 }
 
-.modal-content,
-.qr-container {
-    background-color: var(--color-bg-panel);
-    padding: var(--spacing-lg);
-    border-radius: calc(var(--border-radius) + 2px);
-    min-width: 300px;
-    max-width: 500px;
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-}
-
-.modal-content button,
-.qr-container button {
-    align-self: flex-end;
-}
-
-/* =============================
-   ALERTS & CONFIRMS
-============================= */
-#alert-message-container,
-#confirm-message-container {
-    position: fixed;
-    bottom: var(--spacing-lg);
-    right: var(--spacing-lg);
-    background-color: var(--color-alert);
-    padding: var(--spacing-md);
-    border-radius: var(--border-radius);
+#lessons-panel {
     display: none;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    z-index: 1100;
-    flex-direction: column;
-    gap: var(--spacing-lg);
 }
-
-#confirm-buttons {
-    display: flex;
-    gap: var(--spacing-lg);
-    justify-content: flex-end;
-}
-
-#confirm-message-container {
-    background-color: var(--color-confirm);
-}
-
-/* =============================
-   TYPOGRAPHY & UTILITIES
-============================= */
-h1, h2, h3 {
-    margin-bottom: var(--spacing-sm);
-}
-
-span {
-    font-size: var(--font-size-normal);
-}
-
-.flex { display: flex; }
-.flex-center { display: flex; justify-content: center; align-items: center; }
-.mt-10 { margin-top: var(--spacing-md); }
-.mb-10 { margin-bottom: var(--spacing-md); }
-.p-10 { padding: var(--spacing-md); }

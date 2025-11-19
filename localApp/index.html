@@ -8,19 +8,19 @@
 </head>
 <body>
     <header>
-        <div id="classes-header">
+        <div id="classes-header" class="header">
             <h1 id="classes-title">Classes</h1>
             <button id="add-class-btn" class="button"> &plus; </button>
         </div>
 
-        <div id="class-header">
+        <div id="class-header" class="header">
             <button id="back-to-classes-btn" class="button">  &larr; </button>
             <h1 id="class-title"></h1>
-            <button id="change-class-name-btn" class="button"></button>
-            <button id="switch-detail-btn"></button>
+            <button id="change-class-name-btn" class="button"> Rename </button>
+            <button id="switch-detail-btn"> [Students / Lessons] </button>
         </div>
 
-        <div id="lesson-header">
+        <div id="lesson-header" class="header">
             <button id="back-to-lessons-btn" class="button"> &larr; </button>
             <h1 id="lesson-title"></h1>
             <button id="qr-lesson-modal-btn" class="button"> QR </button>
@@ -29,6 +29,14 @@
     
     <main>
         <div id="classes" class="container">
+            <div id="add-class-modal-overlay" class="modal-overlay">
+                <div class="modal-content">
+                    <label for="new-class-name-input">Class Name:</label>
+                    <input type="text" id="new-class-name-input" />
+                    <button id="create-class-btn" class="button"> Create Class </button>
+                    <button id="close-add-class-modal-btn" class="button"> &times; </button>
+                </div>
+            </div>
             <ul id="classes-list">
                 <!--
                 <li id="class-card">
@@ -43,6 +51,18 @@
         <div id="class-detail" class="container">
             <div id="students-panel">
                 <button id="add-student-btn" class="button"> &plus; </button>
+                <div id="add-student-modal-overlay" class="modal-overlay">
+                    <div class="modal-content">
+                        <label for="student-id-input">Student ID:</label>
+                        <input type="text" id="student-id-input" />
+                        <label for="student-first-name-input">First Name:</label>
+                        <input type="text" id="student-first-name-input" />
+                        <label for="student-last-name-input">Last Name:</label>
+                        <input type="text" id="student-last-name-input" />
+                        <button id="create-student-btn" class="button"> Add Student </button>
+                        <button id="close-add-student-modal-btn" class="button"> &times; </button>
+                    </div>
+                </div>
                 <button id="qr-class-modal-btn" class="button"> QR </button>
                 <table id="students-table" class="students-table">
                     <thead>
@@ -112,12 +132,12 @@
         </div>
     </main>
 
-    <div id="alert-message-container">
+    <div id="alert-message-container" class="pop-up">
         <span id="alert-text"></span>
         <button id="close-alert-btn" class="button"> &times; </button> 
     </div>
 
-    <div id="confirm-message-container">
+    <div id="confirm-message-container" class="pop-up">
         <span id="confirm-text"></span>
         <div id="confirm-buttons">
             <button id="confirm-yes-btn" class="button">Yes</button>
