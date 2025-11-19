@@ -83,7 +83,7 @@ let db = {
 function show(element, displayStyle = 'flex') { if (element) element.style.display = displayStyle; }
 function hide(element) { if (element) element.style.display = 'none'; }
 
-/* loading */
+/* LOADING */
 function loadClasses() {
     UI.classes.list.innerHTML = '';
 
@@ -148,7 +148,9 @@ function loadStudentsTable(classId){
     });
 }
 
-/* event listeners */
+/* EVENT LISTENERS */
+
+// classes 
 UI.classes.addBtn.onclick = async () => {
     show(UI.classes.addModal.overlay, 'flex');
     UI.classes.addModal.input.value = '';
@@ -193,6 +195,49 @@ UI.classes.list.addEventListener('click', async (e) => {
     openClassDetail(classId);
 });
 
+// class detail - header
+UI.headers.classHeader.querySelector('#back-to-classes-btn').onclick = () => {
+    currentClassId = null;
+    hide(UI.classDetail.container);
+    show(UI.classes.container);
+    hide(UI.headers.classHeader);
+    show(UI.headers.classesHeader);
+    loadClasses();
+}
+
+UI.classDetail.changeNameBtn.onclick = () => {
+    UI.classDetail.titleInput.value = UI.classDetail.title.textContent;
+    UI.classDetail.titleInput.style.width = (UI.classDetail.title.textContent.length + 1) + 'ch';
+    show(UI.classDetail.titleInput);
+    hide(UI.classDetail.title);
+    hide(UI.classDetail.changeNameBtn);
+    UI.classDetail.titleInput.focus();
+}
+
+function saveClassName() {
+    const newName = UI.classDetail.titleInput.value.trim();
+    if (newName !== '') {
+        UI.classDetail.title.textContent = newName;
+        const classId = parseInt(UI.classDetail.title.dataset.classId);
+        const cls = db.classes.find(c => c.id === classId);
+        cls.name = UI.classDetail.titleInput.value.trim(); 
+        if (cls) cls.name = newName;
+    }
+
+    hide(UI.classDetail.titleInput);
+    show(UI.classDetail.title);
+    show(UI.classDetail.changeNameBtn);
+}
+
+UI.classDetail.titleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveClassName();
+});
+
+UI.classDetail.titleInput.addEventListener('blur', saveClassName);
+
+UI.alerts.closeBtn.onclick = () => { hide(UI.alerts.container); UI.alerts.text.textContent = ''; };
+
+// class detail - students panel
 UI.classDetail.studentsPanel.addBtn.onclick = async () => {
     show(UI.classDetail.studentsPanel.addModal.overlay, 'flex');
     UI.classDetail.studentsPanel.addModal.idInput.value = '';
@@ -236,47 +281,63 @@ UI.classDetail.studentsPanel.table.addEventListener('click', async (e) => {
     }
 });
 
-UI.headers.classHeader.querySelector('#back-to-classes-btn').onclick = () => {
-    currentClassId = null;
-    hide(UI.classDetail.container);
-    show(UI.classes.container);
-    hide(UI.headers.classHeader);
-    show(UI.headers.classesHeader);
-    loadClasses();
+
+
+let pendingStudents = [];
+
+UI.classDetail.studentsPanel.qrBtn.onclick = () => {
+    const classId = parseInt(UI.classDetail.title.dataset.classId);
+    const cls = db.classes.find(c => c.id === classId);
+
+    UI.classDetail.studentsPanel.qrCode.innerHTML = '';
+    const qrData = `class:${cls.id}`;
+    new QRCode(UI.classDetail.studentsPanel.qrCode, {
+        text: qrData,
+        width: 200,
+        height: 200
+    });
+
+    // fake scanned students
+    pendingStudents = [
+        { id: Math.floor(Math.random() * 1000) + 1000, firstName: 'Paolo', lastName: 'Rossi' },
+        { id: Math.floor(Math.random() * 1000) + 1000, firstName: 'Marco', lastName: 'Bianchi' }
+    ];
+
+    const tbody = UI.classDetail.studentsPanel.qrTable.querySelector('tbody');
+    tbody.innerHTML = '';
+    pendingStudents.forEach(student => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${student.id}</td>
+            <td>${student.firstName}</td>
+            <td>${student.lastName}</td>
+        `;
+        tbody.appendChild(row);
+    });
+
+    show(UI.classDetail.studentsPanel.qrModal, 'flex');
 }
 
-UI.classDetail.changeNameBtn.onclick = () => {
-    UI.classDetail.titleInput.value = UI.classDetail.title.textContent;
-    UI.classDetail.titleInput.style.width = (UI.classDetail.title.textContent.length + 1) + 'ch';
-    show(UI.classDetail.titleInput);
-    hide(UI.classDetail.title);
-    hide(UI.classDetail.changeNameBtn);
-    UI.classDetail.titleInput.focus();
+UI.classDetail.studentsPanel.closeQrBtn.onclick = () => {
+    hide(UI.classDetail.studentsPanel.qrModal);
 }
 
-function saveClassName() {
-    const newName = UI.classDetail.titleInput.value.trim();
-    if (newName !== '') {
-        UI.classDetail.title.textContent = newName;
-        const classId = parseInt(UI.classDetail.title.dataset.classId);
-        const cls = db.classes.find(c => c.id === classId);
-        cls.name = UI.classDetail.titleInput.value.trim(); 
-        if (cls) cls.name = newName;
-    }
+UI.classDetail.studentsPanel.addToClassBtn.onclick = () => {
+    const classId = parseInt(UI.classDetail.title.dataset.classId);
+    const cls = db.classes.find(c => c.id === classId);
 
-    hide(UI.classDetail.titleInput);
-    show(UI.classDetail.title);
-    show(UI.classDetail.changeNameBtn);
-}
+    pendingStudents.forEach(student => {
+        if (!cls.students.some(s => s.id === student.id)) {
+            cls.students.push({ ...student, attendance: 0 });
+        }
+    });
 
-UI.classDetail.titleInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveClassName();
-});
+    loadStudentsTable(classId);
+    pendingStudents = [];
+    hide(UI.classDetail.studentsPanel.qrModal);
+};
 
-UI.classDetail.titleInput.addEventListener('blur', saveClassName);
-
-UI.alerts.closeBtn.onclick = () => { hide(UI.alerts.container); UI.alerts.text.textContent = ''; };
-
+/* ALERTS & CONFIRMS */
 const launchAlert = (message) => { UI.alerts.text.textContent = message; show(UI.alerts.container, 'flex'); };
 
 const askConfirm = (message) => new Promise(resolve => {
@@ -287,11 +348,11 @@ const askConfirm = (message) => new Promise(resolve => {
     UI.confirms.noBtn.onclick = () => { cleanup(); resolve(false); };
 });
 
-/* state */
+/* STATE */
 let currentClassId = null;
 let currentLessonId = null;
 
-/* init */
+/* INIT */
 loadClasses();
 show(UI.headers.classesHeader);
 show(UI.classes.container);
