@@ -48,7 +48,7 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
 
 // --- Database Schema Setup ---
 db.serialize(() => {
-    // Enable foreign key constraints for data integrity
+    // Enable foreign key constraints
     db.run("PRAGMA foreign_keys = ON");
 
     // 1. CLASSES Table
@@ -59,7 +59,7 @@ db.serialize(() => {
         )
     `);
 
-    // 2. STUDENTS Table (Composite Primary Key: student_id + class_id)
+    // 2. STUDENTS Table
     db.run(`
         CREATE TABLE IF NOT EXISTS students (
             student_id TEXT NOT NULL,
@@ -81,40 +81,64 @@ db.serialize(() => {
         )
     `);
 
-    // 4. ATTENDANCE Table (Tracking who was present for which lesson)
+    // 4. ATTENDANCE Table
     db.run(`
         CREATE TABLE IF NOT EXISTS attendance (
-          lesson_id INTEGER NOT NULL,
-          student_id TEXT NOT NULL,
-          class_id INTEGER NOT NULL,
-          is_present INTEGER DEFAULT 0,
-          PRIMARY KEY (lesson_id, student_id, class_id),
-          FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
-          FOREIGN KEY (student_id, class_id) REFERENCES students(student_id, class_id) ON DELETE CASCADE
-      );
+            lesson_id INTEGER NOT NULL,
+            student_id TEXT NOT NULL,
+            class_id INTEGER NOT NULL,
+            is_present INTEGER DEFAULT 0,
+            PRIMARY KEY (lesson_id, student_id, class_id),
+            FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
+            FOREIGN KEY (student_id, class_id) REFERENCES students(student_id, class_id) ON DELETE CASCADE
+        )
     `);
 
-    // 5. TOKENS Table (Stores the QR code token for active lessons)
+    // 5. LESSON TOKENS
     db.run(`
-      CREATE TABLE IF NOT EXISTS tokens (
-          token TEXT PRIMARY KEY,
-          lesson_id INTEGER NOT NULL UNIQUE,
-          created_at TEXT NOT NULL,
-          FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
-      )
-  `);
+        CREATE TABLE IF NOT EXISTS lesson_tokens (
+            token TEXT PRIMARY KEY,
+            lesson_id INTEGER NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+        )
+    `);
 
-    // 6. IP_ADDRESSES Table (Logs student IP to prevent duplicate registrations)
+    // 6. CLASS TOKENS
     db.run(`
-    CREATE TABLE IF NOT EXISTS ip_addresses (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        lesson_id INTEGER NOT NULL,
-        ip_address TEXT NOT NULL,
-        UNIQUE(lesson_id, ip_address),
-        FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
-    )
-  `);
+        CREATE TABLE IF NOT EXISTS class_tokens (
+            token TEXT PRIMARY KEY,
+            class_id INTEGER NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
+        )
+    `);
+
+    // 7. IP ADDRESSES
+    db.run(`
+        CREATE TABLE IF NOT EXISTS ip_addresses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lesson_id INTEGER NOT NULL,
+            ip_address TEXT NOT NULL,
+            UNIQUE(lesson_id, ip_address),
+            FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+        )
+    `);
+
+    // 8. PENDING STUDENTS
+    db.run(`
+        CREATE TABLE IF NOT EXISTS pending_students (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            class_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
+        )
+    `);
 });
+
 
 // --- Utility: Get Local LAN IP Address ---
 function getLocalIP() {
@@ -209,39 +233,6 @@ app.get('/classes/:id/lessons', checkLocal, (req, res) => {
     });
 });
 
-// API to generate/regenerate a QR code token for a lesson
-app.post('/lessons/:lessonId/token', checkLocal, (req, res) => {
-  const { lessonId } = req.params;
-  // Generate a short, random hex token (6 chars)
-  const token = crypto.randomBytes(3).toString('hex').toUpperCase();
-  const createdAt = new Date().toISOString();
-
-  db.get('SELECT id, class_id FROM lessons WHERE id = ?', [lessonId], (err, lesson) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
-
-      // Insert or REPLACE the existing token for this lesson (ON CONFLICT)
-      const query = `
-          INSERT INTO tokens (token, lesson_id, created_at) 
-          VALUES (?, ?, ?)
-          ON CONFLICT(lesson_id) DO UPDATE SET token = excluded.token, created_at = excluded.created_at
-      `;
-      
-      db.run(query, [token, lessonId, createdAt], function(err) {
-          if (err) return res.status(500).json({ error: err.message });
-
-          const ip = getLocalIP();
-          // Returns data needed to construct the QR code URL (token, lessonId) and server IP
-          res.json({ 
-              token: token, 
-              lesson_id: lessonId,
-              class_id: lesson.class_id,
-              server_ip: ip 
-          });
-      });
-  });
-});
-
 // Get student list with total attendance count for a class
 app.get('/classes/:classId/students-with-attendance', checkLocal, async (req, res) => {
     const classId = req.params.classId;
@@ -268,6 +259,130 @@ app.get('/classes/:classId/students-with-attendance', checkLocal, async (req, re
     });
 });
 
+// get pending students for a class
+app.get('/classes/:classId/pending-students', checkLocal, (req, res) => {
+    const classId = req.params.classId;
+
+    const query = `
+        SELECT id, student_id, first_name, last_name, created_at
+        FROM pending_students
+        WHERE class_id = ?
+        ORDER BY created_at ASC
+    `;
+
+    db.all(query, [classId], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+/* POST */
+
+// API to generate/regenerate a QR code token for a lesson
+app.post('/lessons/:lessonId/token', checkLocal, (req, res) => {
+  const { lessonId } = req.params;
+  // Generate a short, random hex token (6 chars)
+  const token = crypto.randomBytes(3).toString('hex').toUpperCase();
+  const createdAt = new Date().toISOString();
+
+  db.get('SELECT id, class_id FROM lessons WHERE id = ?', [lessonId], (err, lesson) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+
+      // Insert or REPLACE the existing token for this lesson (ON CONFLICT)
+      const query = `
+          INSERT INTO lesson_tokens (token, lesson_id, created_at) 
+          VALUES (?, ?, ?)
+          ON CONFLICT(lesson_id) DO UPDATE SET token = excluded.token, created_at = excluded.created_at
+      `;
+      
+      db.run(query, [token, lessonId, createdAt], function(err) {
+          if (err) return res.status(500).json({ error: err.message });
+
+          const ip = getLocalIP();
+          // Returns data needed to construct the QR code URL (token, lessonId) and server IP
+          res.json({ 
+              token: token, 
+              lesson_id: lessonId,
+              class_id: lesson.class_id,
+              server_ip: ip 
+          });
+      });
+  });
+});
+
+//add pending student
+app.post('/classes/:classId/pending-students', checkLocal, (req, res) => {
+    const { first_name, last_name, student_id } = req.body;
+    const classId = req.params.classId;
+
+    if (!first_name || !last_name) return res.status(400).json({ error: 'First and last name required' });
+
+    const createdAt = new Date().toISOString();
+
+    db.run(`
+        INSERT INTO pending_students (student_id, first_name, last_name, class_id, created_at)
+        VALUES (?, ?, ?, ?, ?)
+    `, [student_id || null, first_name.trim(), last_name.trim(), classId, createdAt], function(err){
+        if(err) return res.status(500).json({ error: err.message });
+        res.json({ id: this.lastID, student_id, first_name, last_name, class_id: classId });
+    });
+});
+
+//generate class token
+app.post('/classes/:classId/token', checkLocal, (req, res) => {
+    const classId = req.params.classId;
+    const token = crypto.randomBytes(3).toString('hex').toUpperCase();
+    const createdAt = new Date().toISOString();
+
+    db.run(`
+        INSERT INTO class_tokens (token, class_id, created_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(class_id) DO UPDATE SET token = excluded.token, created_at = excluded.created_at
+    `, [token, classId, createdAt], function(err){
+        if(err) return res.status(500).json({ error: err.message });
+        const ip = getLocalIP();
+        res.json({ token, class_id: classId, server_ip: ip });
+    });
+});
+
+//add all pending users to class
+app.post('/classes/:classId/accept-pending-students', checkLocal, (req, res) => {
+    const classId = req.params.classId;
+
+    db.all(`SELECT * FROM pending_students WHERE class_id = ?`, [classId], (err, pending) => {
+        if(err) return res.status(500).json({ error: err.message });
+        if(pending.length === 0) return res.json({ success: true, message: 'No pending students to add' });
+
+        const insertStudentStmt = db.prepare(`INSERT INTO students (student_id, first_name, last_name, class_id) VALUES (?, ?, ?, ?)`);
+        const insertAttendanceStmt = db.prepare(`INSERT INTO attendance (lesson_id, student_id, class_id, is_present) VALUES (?, ?, ?, 0)`);
+
+        // Fetch all lessons for the class
+        db.all(`SELECT id FROM lessons WHERE class_id = ?`, [classId], (err, lessons) => {
+            if(err) return res.status(500).json({ error: err.message });
+
+            pending.forEach(p => {
+                const studentId = p.student_id || crypto.randomBytes(3).toString('hex').toUpperCase(); // generate ID if null
+                insertStudentStmt.run(studentId, p.first_name, p.last_name, classId);
+
+                // Fill attendance for each lesson
+                lessons.forEach(l => {
+                    insertAttendanceStmt.run(l.id, studentId, classId, 0);
+                });
+            });
+
+            insertStudentStmt.finalize();
+            insertAttendanceStmt.finalize();
+
+            // Delete all pending students for the class
+            db.run(`DELETE FROM pending_students WHERE class_id = ?`, [classId], function(err){
+                if(err) return res.status(500).json({ error: err.message });
+                res.json({ success: true, added: pending.length });
+            });
+        });
+    });
+});
+
 /* ----------------------------------- */
 /* --- POST API ---           */
 /* ----------------------------------- */
@@ -286,24 +401,66 @@ app.post('/classes', checkLocal, (req, res) => {
     });
 });
 
-// Add a student to a class
+// Add new student to class
 app.post('/classes/:id/students', checkLocal, (req, res) => {
     const classId = req.params.id;
     const { student_id, first_name, last_name } = req.body;
 
+    console.log(`[DEBUG] Received request to add student to class ${classId}`, req.body);
+
     if (!student_id || !first_name || !last_name) {
+        console.warn('[DEBUG] Missing student data');
         return res.status(400).json({ error: 'Student ID, first name, and last name are required' });
     }
 
-    const query = `INSERT INTO students (student_id, first_name, last_name, class_id) VALUES (?, ?, ?, ?)`;
-    db.run(query, [student_id.trim(), first_name.trim(), last_name.trim(), classId], function(err) {
+    const trimmedId = student_id.trim();
+    const trimmedFirst = first_name.trim();
+    const trimmedLast = last_name.trim();
+
+    console.log(`[DEBUG] Trimmed values: ${trimmedId}, ${trimmedFirst}, ${trimmedLast}`);
+
+    const insertStudent = `INSERT INTO students (student_id, first_name, last_name, class_id) VALUES (?, ?, ?, ?)`;
+
+    db.run(insertStudent, [trimmedId, trimmedFirst, trimmedLast, classId], function(err) {
         if (err) {
-            console.error(err);
+            console.error('[DEBUG] Error inserting student:', err);
             return res.status(500).json({ error: err.message });
         }
-        res.json({ student_id, first_name, last_name, class_id: classId });
+
+        console.log(`[DEBUG] Student inserted with ID ${trimmedId}, starting attendance sync`);
+
+        const getLessonsQuery = `SELECT id FROM lessons WHERE class_id = ?`;
+        db.all(getLessonsQuery, [classId], (err, lessons) => {
+            if (err) {
+                console.error('[DEBUG] Error fetching lessons:', err);
+                return res.status(500).json({ error: 'Errore recuperando le lezioni' });
+            }
+
+            console.log(`[DEBUG] Found ${lessons.length} lessons for class ${classId}`);
+
+            if (!lessons.length) {
+                console.log('[DEBUG] No lessons to sync, returning student');
+                return res.json({ student_id: trimmedId, first_name: trimmedFirst, last_name: trimmedLast, class_id: classId });
+            }
+
+            const stmt = db.prepare(`INSERT INTO attendance (lesson_id, student_id, class_id, is_present) VALUES (?, ?, ?, 0)`);
+            lessons.forEach(lesson => {
+                console.log(`[DEBUG] Adding attendance entry for lesson ${lesson.id} and student ${trimmedId}`);
+                stmt.run(lesson.id, trimmedId, classId);
+            });
+            stmt.finalize(err => {
+                if (err) {
+                    console.error('[DEBUG] Error finalizing attendance statements:', err);
+                } else {
+                    console.log('[DEBUG] Attendance synchronization completed');
+                }
+            });
+
+            res.json({ student_id: trimmedId, first_name: trimmedFirst, last_name: trimmedLast, class_id: classId });
+        });
     });
 });
+
 
 // Create a new lesson and pre-fill attendance records for all students
 app.post('/classes/:id/lessons', checkLocal, (req, res) => {
@@ -375,7 +532,7 @@ app.post('/verify-token', (req, res) => {
   // 1. Verify token validity and get class_id
   const tokenQuery = `
       SELECT t.lesson_id, l.class_id
-      FROM tokens t
+      FROM lesson_tokens t
       JOIN lessons l ON l.id = t.lesson_id
       WHERE t.token = ? AND t.lesson_id = ?`;
 
@@ -462,11 +619,21 @@ app.delete('/lessons/:id', checkLocal, (req, res) => {
     });
 });
 
+// delete a pending student
+app.delete('/pending-students/:id', checkLocal, (req, res) => {
+    const { id } = req.params;
+    db.run(`DELETE FROM pending_students WHERE id = ?`, [id], function(err){
+        if(err) return res.status(500).json({ error: err.message });
+        if(this.changes === 0) return res.status(404).json({ error: 'Pending student not found' });
+        res.json({ success: true, message: `Pending student ${id} deleted` });
+    });
+});
+
 // Manually delete a token (e.g., to force a new QR generation)
 app.delete('/lessons/:lessonId/token', checkLocal, (req, res) => {
   const { lessonId } = req.params;
 
-  db.run(`DELETE FROM tokens WHERE lesson_id = ?`, [lessonId], function(err) {
+  db.run(`DELETE FROM lesson_tokens WHERE lesson_id = ?`, [lessonId], function(err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true, message: `Token for lesson ${lessonId} deleted` });
   });
@@ -506,6 +673,26 @@ app.patch('/attendance/:lessonId/:studentId', checkLocal, (req, res) => {
           res.json({ success: true, changes: this.changes });
       });
   });
+});
+
+// Update class name
+app.patch('/classes/:id', checkLocal, (req, res) => {
+    const classId = req.params.id;
+    const { name } = req.body;
+
+    if (!name || name.trim() === '') {
+        return res.status(400).json({ error: 'Class name is required' });
+    }
+
+    const query = `UPDATE classes SET name = ? WHERE id = ?`;
+    db.run(query, [name.trim(), classId], function(err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: err.message });
+        }
+
+        res.json({ id: classId, name: name.trim() });
+    });
 });
 
 /* ----------------------------------- */

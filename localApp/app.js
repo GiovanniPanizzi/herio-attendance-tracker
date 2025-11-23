@@ -81,47 +81,17 @@ const UI = {
     }
 };
 
-let db = {
-    classes: [
-        { 
-            id: 1, 
-            name: "Matematica",
-
-            students: [
-                { id: 1, firstName: "Mario", lastName: "Rossi" },
-                { id: 2, firstName: "Luigi", lastName: "Bianchi" }
-            ],
-
-            lessons: [
-            ],
-
-            attendance: [
-            ]
-        },
-
-        { 
-            id: 2, 
-            name: "Fisica",
-            students: [
-                { id: 3, firstName: "Anna", lastName: "Verdi" },
-                { id: 4, firstName: "Sara", lastName: "Neri" }
-            ],
-            lessons: [],
-            attendance: []
-        }
-    ]
-};
-
 function show(element, displayStyle = 'flex') { if (element) element.style.display = displayStyle; }
 function hide(element) { if (element) element.style.display = 'none'; }
 
+
 /* LOADING */
-function loadClasses() {
+function loadClasses(classes) {
     UI.classes.list.innerHTML = '';
 
-    db.classes.forEach(cls => {
+    classes.forEach(cls => {
         const classCard = document.createElement('li');
-        classCard.className = 'class-card';
+        classCard.className = 'class-card card';
         classCard.dataset.id = cls.id;
 
         const className = document.createElement('span');
@@ -130,7 +100,7 @@ function loadClasses() {
 
         const studentCount = document.createElement('span');
         studentCount.className = 'class-card-student-count';
-        studentCount.textContent = `Students: ${cls.students.length}`;
+        studentCount.textContent = `Students: ${cls.student_count ?? 0}`;
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'button delete-class-btn';
@@ -144,106 +114,121 @@ function loadClasses() {
     });
 }
 
-function openClassDetail(classId){
+function openClassDetail(classId, className){
     currentClassId = classId;
-    const cls = db.classes.find(c => c.id === classId);
-    UI.classDetail.title.textContent = cls.name;
+    UI.classDetail.title.textContent = className;
+    UI.classDetail.title.dataset.classId = classId;
     hide(UI.classes.container);
     show(UI.classDetail.container);
     hide(UI.headers.classesHeader);
     show(UI.headers.classHeader);
-    UI.classDetail.title.dataset.classId = cls.id;
+
     loadStudentsTable(classId);
 }
 
-function loadStudentsTable(classId) {
-    const cls = db.classes.find(c => c.id === classId);
-    if (!cls) return;
+async function loadStudentsTable(classId) {
+    const students = await getStudents(classId);
+    if (!students) return;
 
     const tbody = UI.classDetail.studentsPanel.table.querySelector('tbody');
     tbody.innerHTML = '';
 
-    cls.students.forEach(student => {
-        // Conta le presenze dello studente
-        const attendedCount = cls.attendance
-            ? cls.attendance.filter(a => a.studentId === student.id && a.status === "present").length
-            : 0;
-
+    students.forEach(student => {
+        const attendedCount = student.attendance_count || 0;
+    
         const row = document.createElement('tr');
+    
         row.innerHTML = `
-            <td>${student.id}</td>
-            <td>${student.firstName}</td>
-            <td>${student.lastName}</td>
+            <td>${student.student_id}</td>
+            <td>${student.first_name}</td>
+            <td>${student.last_name}</td>
             <td>${attendedCount}</td>
             <td>
-                <button class="remove-student-btn button" data-student-id="${student.id}">×</button>
+                <button class="remove-student-btn button" data-student-id="${student.student_id}">×</button>
             </td>
         `;
-
+    
         tbody.appendChild(row);
     });
 }
 
-function loadLessons(classId) {
-    const cls = db.classes.find(c => c.id === classId);
-    const list = UI.classDetail.lessonsPanel.list;
+async function loadLessons(classId) {
+    const lessons = await getLessons(classId);
+    if (!lessons) return;
 
+    const list = UI.classDetail.lessonsPanel.list;
     list.innerHTML = '';
 
-    cls.lessons.forEach(lesson => {
+    lessons.forEach(lesson => {
         const li = document.createElement('li');
         li.className = "lesson-card";
         li.dataset.id = lesson.id;
-        li.textContent = `Lezione del ${lesson.date.replace('T', ' ')}`;
+
+        const lessonText = document.createElement('span');
+        lessonText.textContent = `Lezione del ${lesson.date.replace('T', ' ')}`;
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'button delete-lesson-btn';
+        deleteBtn.textContent = '×';
+        deleteBtn.onclick = async (e) => {
+            e.stopPropagation();
+            const confirmed = await askConfirm(`Vuoi davvero eliminare la lezione del ${lesson.date.replace('T', ' ')}?`);
+            if (!confirmed) return;
+
+            const success = await deleteLesson(lesson.id);
+            if (success) {
+                loadLessons(classId);
+            } else {
+                launchAlert('Errore eliminando la lezione.');
+            }
+        };
+
+        li.appendChild(lessonText);
+        li.appendChild(deleteBtn);
         list.appendChild(li);
     });
 }
 
-function loadAttendanceTable(classId, lessonId) {
-    const cls = db.classes.find(c => c.id === classId);
-    const tbody = UI.lessonDetail.attendanceTable.querySelector('tbody');
-    tbody.innerHTML = '';
+async function loadAttendanceTable(classId, lessonId) {
+    try {
+        const res = await fetch(`http://localhost:3000/lessons/${lessonId}/attendance`);
+        if (!res.ok) throw new Error("Errore fetch attendance");
 
-    cls.students.forEach(student => {
-        let attendance = cls.attendance.find(a =>
-            a.studentId === student.id && a.lessonId === lessonId
-        );
+        const students = await res.json();
+        const tbody = UI.lessonDetail.attendanceTable.querySelector('tbody');
+        tbody.innerHTML = '';
 
-        if (!attendance) {
-            attendance = {
-                studentId: student.id,
-                lessonId: lessonId,
-                status: "absent"
-            };
-            cls.attendance.push(attendance);
-        }
+        students.forEach(student => {
+            const checked = student.is_present ? "checked" : "";
 
-        const checked = attendance.status === "present" ? "checked" : "";
-
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${student.id}</td>
-            <td>${student.firstName}</td>
-            <td>${student.lastName}</td>
-            <td>
-                <input 
-                    type="checkbox"
-                    class="attendance-checkbox"
-                    data-student-id="${student.id}"
-                    data-lesson-id="${lessonId}"
-                    ${checked}
-                >
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${student.student_id}</td>
+                <td>${student.first_name}</td>
+                <td>${student.last_name}</td>
+                <td>
+                    <input 
+                        type="checkbox"
+                        class="attendance-checkbox"
+                        data-student-id="${student.student_id}"
+                        data-lesson-id="${lessonId}"
+                        ${checked}
+                    >
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    } catch (err) {
+        console.error(err);
+        launchAlert("Errore caricando la tabella presenze");
+    }
 }
 
-
-function openLessonDetail(classId, lessonId) {
+async function openLessonDetail(classId, lessonId) {
     currentLessonId = lessonId;
-    const cls = db.classes.find(c => c.id === classId);
-    const lesson = cls.lessons.find(l => l.id === lessonId);
+
+    const lessons = await getLessons(classId);
+    const lesson = lessons.find(l => l.id === lessonId);
 
     UI.lessonDetail.title.textContent = `Lezione del ${lesson.date.replace('T', ' ')}`;
 
@@ -274,32 +259,27 @@ UI.classes.addModal.createBtn.onclick = () => {
         launchAlert('Il nome della classe non può essere vuoto.');
         return;
     }
-    const newClass = {
-        id: db.classes.length > 0 ? Math.max(...db.classes.map(c => c.id)) + 1 : 1,
-        name: className,
-        students: []
-    };
-    db.classes.push(newClass);
-    loadClasses();
+    createClass(className);
+    getClasses();
     hide(UI.classes.addModal.overlay);
 };
     
 UI.classes.list.addEventListener('click', async (e) => {
-    const card = e.target.closest('.class-card'); 
+    const card = e.target.closest('.class-card');
     if (!card) return;
 
     const classId = parseInt(card.dataset.id);
 
     if (e.target.classList.contains('delete-class-btn')) {
-        const confirmed = await askConfirm(`Vuoi davvero eliminare la classe "${card.querySelector('.class-card-name').textContent}"?`);
+        const className = card.querySelector('.class-card-name').textContent;
+        const confirmed = await askConfirm(`Vuoi davvero eliminare la classe "${className}"?`);
         if (!confirmed) return;
-
-        db.classes = db.classes.filter(c => c.id !== classId);
-        loadClasses();
+        deleteClass(classId);
         return;
     }
 
-    openClassDetail(classId);
+    const className = card.querySelector('.class-card-name').textContent;
+    openClassDetail(classId, className);
 });
 
 // class detail - header
@@ -309,7 +289,7 @@ UI.headers.classHeader.querySelector('#back-to-classes-btn').onclick = () => {
     show(UI.classes.container);
     hide(UI.headers.classHeader);
     show(UI.headers.classesHeader);
-    loadClasses();
+    getClasses();
 }
 
 UI.classDetail.changeNameBtn.onclick = () => {
@@ -321,14 +301,14 @@ UI.classDetail.changeNameBtn.onclick = () => {
     UI.classDetail.titleInput.focus();
 }
 
-function saveClassName() {
+async function saveClassName() {
     const newName = UI.classDetail.titleInput.value.trim();
     if (newName !== '') {
-        UI.classDetail.title.textContent = newName;
         const classId = parseInt(UI.classDetail.title.dataset.classId);
-        const cls = db.classes.find(c => c.id === classId);
-        cls.name = UI.classDetail.titleInput.value.trim(); 
-        if (cls) cls.name = newName;
+        const updated = await updateClassName(classId, newName);
+        if (updated) {
+            UI.classDetail.title.textContent = updated.name;
+        }
     }
 
     hide(UI.classDetail.titleInput);
@@ -346,9 +326,11 @@ UI.classDetail.switchDetailBtn.onclick = () => {
     if(UI.classDetail.studentsPanel.container.style.display !== 'none'){
         hide(UI.classDetail.studentsPanel.container);
         show(UI.classDetail.lessonsPanel.container);
+        loadLessons(currentClassId);
     } else {
         show(UI.classDetail.studentsPanel.container);
         hide(UI.classDetail.lessonsPanel.container);
+        loadStudentsTable(currentClassId);
     }
 }
 
@@ -364,76 +346,114 @@ UI.classDetail.studentsPanel.addModal.closeBtn.onclick = () => {
     hide(UI.classDetail.studentsPanel.addModal.overlay);
 }
 
-UI.classDetail.studentsPanel.addModal.createBtn.onclick = () => {
-    const id = parseInt(UI.classDetail.studentsPanel.addModal.idInput.value.trim());
+UI.classDetail.studentsPanel.addModal.createBtn.onclick = async () => {
+    const id = UI.classDetail.studentsPanel.addModal.idInput.value.trim();
     const firstName = UI.classDetail.studentsPanel.addModal.firstNameInput.value.trim();
     const lastName = UI.classDetail.studentsPanel.addModal.lastNameInput.value.trim();
-    if (isNaN(id) || firstName === '' || lastName === '') {
+
+    if (id === '' || firstName === '' || lastName === '') {
         launchAlert('Tutti i campi devono essere compilati correttamente.');
         return;
     }
+
     const classId = parseInt(UI.classDetail.title.dataset.classId);
-    const cls = db.classes.find(c => c.id === classId);
-    if (cls.students.some(s => s.id === id)) {
-        launchAlert('Uno studente con questo ID è già presente nella classe.');
+
+    const created = await createStudent(classId, id, firstName, lastName);
+    if (!created) {
+        launchAlert("Errore creando lo studente.");
         return;
     }
-    cls.students.push({ id, firstName, lastName, attendance: 0 });
-    loadStudentsTable(classId);
+
+    await loadStudentsTable(classId);
     hide(UI.classDetail.studentsPanel.addModal.overlay);
 };
 
 UI.classDetail.studentsPanel.table.addEventListener('click', async (e) => {
-    if (e.target.classList.contains('remove-student-btn')) {
-        const studentId = parseInt(e.target.dataset.studentId);
-        const classId = parseInt(UI.classDetail.title.dataset.classId);
-        const cls = db.classes.find(c => c.id === classId);
-        const student = cls.students.find(s => s.id === studentId);
-        const confirmed = await askConfirm(`Vuoi davvero rimuovere lo studente "${student.firstName} ${student.lastName}" dalla classe "${cls.name}"?`);
-        if (!confirmed) return;
-        cls.students = cls.students.filter(s => s.id !== studentId);
-        loadStudentsTable(classId);
+    if (!e.target.classList.contains('remove-student-btn')) return;
+
+    const btn = e.target;
+    btn.disabled = true;
+
+    const studentId = parseInt(btn.dataset.studentId);
+    const classId = parseInt(UI.classDetail.title.dataset.classId);
+
+    const confirmed = await askConfirm("Vuoi davvero rimuovere questo studente?");
+    if (!confirmed) {
+        btn.disabled = false;
+        return;
     }
+
+    const ok = await deleteStudent(classId, studentId);
+    if (!ok) {
+        launchAlert("Errore eliminando lo studente.");
+        btn.disabled = false;
+        return;
+    }
+
+    loadStudentsTable(classId);
 });
 
-let pendingStudents = [];
+let pendingInterval = null;
 
-UI.classDetail.studentsPanel.qrBtn.onclick = () => {
+UI.classDetail.studentsPanel.qrBtn.onclick = async () => {
     const classId = parseInt(UI.classDetail.title.dataset.classId);
-    const cls = db.classes.find(c => c.id === classId);
+
+    const data = await fetch(`/classes/${classId}/token`, { method: 'POST' }).then(r => r.json());
+    const ip = data.server_ip;
+    const qrData = `http://${ip}:3000/registration.html?class=${classId}&token=${data.token}`;
 
     UI.classDetail.studentsPanel.qrCode.innerHTML = '';
-    const qrData = `class:${cls.id}`;
     new QRCode(UI.classDetail.studentsPanel.qrCode, {
         text: qrData,
         width: 200,
-        height: 200
+        height: 200,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
     });
-
-    // fake scanned students
-    pendingStudents = [
-        { id: Math.floor(Math.random() * 1000) + 1000, firstName: 'Paolo', lastName: 'Rossi' },
-        { id: Math.floor(Math.random() * 1000) + 1000, firstName: 'Marco', lastName: 'Bianchi' }
-    ];
 
     const tbody = UI.classDetail.studentsPanel.qrTable.querySelector('tbody');
-    tbody.innerHTML = '';
-    pendingStudents.forEach(student => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${student.id}</td>
-            <td>${student.firstName}</td>
-            <td>${student.lastName}</td>
-        `;
-        tbody.appendChild(row);
-    });
+
+    async function updatePendingStudents() {
+        const students = await fetch(`/classes/${classId}/pending-students`).then(r => r.json());
+        tbody.innerHTML = '';
+        students.forEach(student => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${student.student_id || ''}</td>
+                <td>${student.first_name}</td>
+                <td>${student.last_name}</td>
+                <td>
+                    <button class="delete-btn" data-id="${student.id}">Elimina</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        tbody.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.onclick = async () => {
+                const id = btn.dataset.id;
+                await fetch(`/pending-students/${id}`, { method: 'DELETE' });
+                updatePendingStudents();
+            };
+        });
+    }
+
+    pendingInterval = setInterval(updatePendingStudents, 1000);
+    updatePendingStudents();
 
     show(UI.classDetail.studentsPanel.qrModal, 'flex');
-}
+
+    UI.classDetail.studentsPanel.approvePendingBtn.onclick = async () => {
+        await fetch(`/classes/${classId}/approve-pending-students`, { method: 'POST' });
+        updatePendingStudents();
+    };
+};
 
 UI.classDetail.studentsPanel.closeQrBtn.onclick = () => {
     hide(UI.classDetail.studentsPanel.qrModal);
-}
+    clearInterval(pendingInterval);
+};
 
 UI.classDetail.studentsPanel.addToClassBtn.onclick = () => {
     const classId = parseInt(UI.classDetail.title.dataset.classId);
@@ -459,10 +479,8 @@ UI.classDetail.lessonsPanel.addBtn.onclick = () => {
         now.toISOString().slice(0, 16);
 };
 
-UI.classDetail.lessonsPanel.addModal.createBtn.onclick = () => {
+UI.classDetail.lessonsPanel.addModal.createBtn.onclick = async () => {
     const classId = parseInt(UI.classDetail.title.dataset.classId);
-    const cls = db.classes.find(c => c.id === classId);
-
     const dateTime = UI.classDetail.lessonsPanel.addModal.dateInput.value;
 
     if (!dateTime) {
@@ -470,22 +488,13 @@ UI.classDetail.lessonsPanel.addModal.createBtn.onclick = () => {
         return;
     }
 
-    const newLesson = {
-        id: cls.lessons.length > 0 ? Math.max(...cls.lessons.map(l => l.id)) + 1 : 1,
-        date: dateTime
-    };
+    const lesson = await createLesson(classId, dateTime);
+    if (!lesson) {
+        launchAlert("Errore creando la lezione.");
+        return;
+    }
 
-    cls.lessons.push(newLesson);
-
-    cls.students.forEach(stu => {
-        cls.attendance.push({
-            lessonId: newLesson.id,
-            studentId: stu.id,
-            status: "absent"  
-        });
-    });
-
-    loadLessons(cls.id);
+    loadLessons(classId);
     hide(UI.classDetail.lessonsPanel.addModal.overlay);
 };
 
@@ -512,58 +521,61 @@ UI.lessonDetail.backBtn.onclick = () => {
 }
 
 // lesson detail - table
-UI.lessonDetail.attendanceTable.addEventListener('change', (e) => {
+UI.lessonDetail.attendanceTable.addEventListener('change', async (e) => {
     if (!e.target.classList.contains('attendance-checkbox')) return;
 
-    const studentId = parseInt(e.target.dataset.studentId);
-    const lessonId = parseInt(e.target.dataset.lessonId);
-    const classId = currentClassId;
+    const studentId = e.target.dataset.studentId;
+    const lessonId = e.target.dataset.lessonId;
+    const is_present = e.target.checked ? 1 : 0;
 
-    const cls = db.classes.find(c => c.id === classId);
-
-    const attendance = cls.attendance.find(a =>
-        a.studentId === studentId && a.lessonId === lessonId
-    );
-
-    attendance.status = e.target.checked ? "present" : "absent";
+    updateAttendance(lessonId, studentId, is_present);
 });
 
 // lesson detail - qr modal
-UI.lessonDetail.qrBtn.onclick = () => {
+UI.lessonDetail.qrBtn.onclick = async () => {
     const classId = currentClassId;
     const lessonId = currentLessonId;
-    const cls = db.classes.find(c => c.id === classId);
-    const lesson = cls.lessons.find(l => l.id === lessonId);
 
-    const qrData = `lesson:${classId}:${lessonId}:${Math.random().toString(36).substr(2, 6)}`;
+    async function generateQR() {
+        const data = await fetch(`/lessons/${lessonId}/token`, { method: 'POST' }).then(r => r.json());
+        const ip = data.server_ip;
+        const token = data.token;
+        const qrUrl = `http://${ip}:3000/?class=${classId}&token=${token}`;
 
-    UI.lessonDetail.qrModal.token.textContent = qrData.split(':')[3];
+        UI.lessonDetail.qrModal.token.textContent = token;
+        UI.lessonDetail.qrModal.code.innerHTML = '';
 
-    UI.lessonDetail.qrModal.code.innerHTML = '';
-    new QRCode(UI.lessonDetail.qrModal.code, {
-        text: qrData,
-        width: 200,
-        height: 200
-    });
+        new QRCode(UI.lessonDetail.qrModal.code, {
+            text: qrUrl,
+            width: 200,
+            height: 200,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
 
-    let countdown = 60;
-    UI.lessonDetail.qrModal.timer.textContent = `Tempo rimanente: ${countdown}s`;
-
-    const timerInterval = setInterval(() => {
-        countdown--;
+        let countdown = 5;
         UI.lessonDetail.qrModal.timer.textContent = `Tempo rimanente: ${countdown}s`;
-        if (countdown <= 0) {
-            clearInterval(timerInterval);
-            hide(UI.lessonDetail.qrModal.overlay);
-        }
-    }, 1000);
 
+        lessonQrInterval = setInterval(async () => {
+            countdown--;
+            UI.lessonDetail.qrModal.timer.textContent = `Tempo rimanente: ${countdown}s`;
+            if (countdown <= 0) {
+                clearInterval(lessonQrInterval);
+                await generateQR();
+            }
+        }, 1000);
+    }
+
+    await generateQR();
     show(UI.lessonDetail.qrModal.overlay, 'flex');
 };
 
-UI.lessonDetail.qrModal.closeBtn.onclick = () => {
+UI.lessonDetail.qrModal.closeBtn.onclick = async () => {
     hide(UI.lessonDetail.qrModal.overlay);
-}
+    clearInterval(lessonQrInterval);
+    await fetch(`/lessons/${currentLessonId}/token`, { method: 'DELETE' });
+};
 
 /* ALERTS & CONFIRMS */
 const launchAlert = (message) => { UI.alerts.text.textContent = message; show(UI.alerts.container, 'flex'); };
@@ -582,7 +594,171 @@ UI.alerts.closeBtn.onclick = () => { hide(UI.alerts.container); UI.alerts.text.t
 let currentClassId = null;
 let currentLessonId = null;
 
+/* FETCH */
+async function getClasses(){ 
+    try {
+        const res = await fetch('http://localhost:3000/classes-with-student-count');
+        if(!res.ok) throw new Error();
+        const data = await res.json();
+        loadClasses(data);
+    } catch(err) {
+        launchAlert("error loading classes");
+    }
+}
+
+async function createClass(className){
+    try{
+        const res = await fetch('http://localhost:3000/classes',{ 
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({name: className}) 
+        });
+        if(!res.ok) throw new Error();
+        getClasses(); 
+    }catch(err){
+        console.error(err);
+        launchAlert('Error creating class');
+    }
+}
+
+async function deleteClass(classId) {
+    try {
+        const res = await fetch(`http://localhost:3000/classes/${classId}`, {
+            method: 'DELETE'
+        });
+
+        if (!res.ok) throw new Error();
+        await getClasses();
+
+    } catch (err) {
+        console.error(err);
+        launchAlert('Error deleting class');
+    }
+}
+
+async function getStudents(classId){
+    try{
+        const res = await fetch(`http://localhost:3000/classes/${classId}/students-with-attendance`);
+        if(!res.ok) throw new Error("Errore nel fetch degli studenti");
+
+        return await res.json();
+    }catch(err){
+        console.error(err);
+        return null;
+    }
+}
+
+async function createStudent(classId, studentId, firstName, lastName) {
+    try {
+        const res = await fetch(`http://localhost:3000/classes/${classId}/students`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                student_id: studentId.toString(),
+                first_name: firstName,
+                last_name: lastName
+            })
+        });
+
+        if (!res.ok) throw new Error();
+
+        return await res.json();
+    } catch (err) {
+        console.error("createStudent error:", err);
+        return null;
+    }
+}
+
+async function deleteStudent(classId, studentId) {
+    try {
+        const res = await fetch(`http://localhost:3000/students/${studentId}/${classId}`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) throw new Error();
+        if (currentLessonId) {
+            await synchronizeAttendance(currentLessonId);
+        }
+        await loadStudentsTable(classId);
+        return true;
+    } catch (err) {
+        console.error(err);
+        launchAlert("Errore eliminando lo studente.");
+        return false;
+    }
+}
+
+async function getLessons(classId){
+    try {
+        const res = await fetch(`http://localhost:3000/classes/${classId}/lessons`);
+        if (!res.ok) throw new Error();
+        return await res.json();
+    } catch(err){
+        console.error("getLessons error:", err);
+        return null;
+    }
+}
+
+async function createLesson(classId, date){
+    try {
+        const res = await fetch(`http://localhost:3000/classes/${classId}/lessons`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ date })
+        });
+        if (!res.ok) throw new Error();
+        return await res.json();
+    } catch(err){
+        console.error("createLesson error:", err);
+        return null;
+    }
+}
+
+async function deleteLesson(lessonId){
+    try {
+        const res = await fetch(`http://localhost:3000/lessons/${lessonId}`, {
+            method:'DELETE'
+        });
+        if (!res.ok) throw new Error();
+        return true;
+    } catch(err){
+        console.error("deleteLesson error:", err);
+        return false;
+    }
+}
+
+async function updateAttendance(lessonId, studentId, isPresent) {
+    try {
+        const res = await fetch(`http://localhost:3000/attendance/${lessonId}/${studentId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_present: isPresent ? 1 : 0 })
+        });
+
+        if (!res.ok) throw new Error();
+
+        return true;
+    } catch (err) {
+        console.error("updateAttendance error:", err);
+        return false;
+    }
+}
+
+async function updateClassName(classId, newName) {
+    try {
+        const res = await fetch(`http://localhost:3000/classes/${classId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName })
+        });
+        if (!res.ok) throw new Error();
+        return await res.json();
+    } catch (err) {
+        console.error("updateClassName error:", err);
+        return null;
+    }
+}
+
 /* INIT */
-loadClasses();
+getClasses();
 show(UI.headers.classesHeader);
 show(UI.classes.container);
