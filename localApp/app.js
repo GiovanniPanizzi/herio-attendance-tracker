@@ -81,6 +81,8 @@ const UI = {
     }
 };
 
+let lessonQrInterval = null;
+
 function show(element, displayStyle = 'flex') { if (element) element.style.display = displayStyle; }
 function hide(element) { if (element) element.style.display = 'none'; }
 
@@ -100,15 +102,35 @@ function loadClasses(classes) {
 
         const studentCount = document.createElement('span');
         studentCount.className = 'class-card-student-count';
-        studentCount.textContent = `Students: ${cls.student_count ?? 0}`;
+        studentCount.textContent = `${cls.student_count ?? 0} studenti iscritti`;
+
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'class-card-buttons';
+
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'button view-class-btn';
+        viewBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="10 8 16 12 10 16"></polyline>
+            </svg>`;
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'button delete-class-btn';
-        deleteBtn.innerHTML = '&times;';
+        deleteBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6l-1 14H6L5 6"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>`;
+
+        btnContainer.appendChild(deleteBtn);
+        btnContainer.appendChild(viewBtn);
 
         classCard.appendChild(className);
         classCard.appendChild(studentCount);
-        classCard.appendChild(deleteBtn);
+        classCard.appendChild(btnContainer);
 
         UI.classes.list.appendChild(classCard);
     });
@@ -270,7 +292,8 @@ UI.classes.list.addEventListener('click', async (e) => {
 
     const classId = parseInt(card.dataset.id);
 
-    if (e.target.classList.contains('delete-class-btn')) {
+    const deleteBtn = e.target.closest('.delete-class-btn');
+    if (deleteBtn) {
         const className = card.querySelector('.class-card-name').textContent;
         const confirmed = await askConfirm(`Vuoi davvero eliminare la classe "${className}"?`);
         if (!confirmed) return;
@@ -278,8 +301,12 @@ UI.classes.list.addEventListener('click', async (e) => {
         return;
     }
 
-    const className = card.querySelector('.class-card-name').textContent;
-    openClassDetail(classId, className);
+    const viewBtn = e.target.closest('.view-class-btn');
+    if (viewBtn) {
+        const className = card.querySelector('.class-card-name').textContent;
+        openClassDetail(classId, className);
+        return;
+    }
 });
 
 // class detail - header
@@ -346,13 +373,18 @@ UI.classDetail.studentsPanel.addModal.closeBtn.onclick = () => {
     hide(UI.classDetail.studentsPanel.addModal.overlay);
 }
 
+let createStudentLocked = false;
+
 UI.classDetail.studentsPanel.addModal.createBtn.onclick = async () => {
+    if (createStudentLocked) return;
+    createStudentLocked = true;
     const id = UI.classDetail.studentsPanel.addModal.idInput.value.trim();
     const firstName = UI.classDetail.studentsPanel.addModal.firstNameInput.value.trim();
     const lastName = UI.classDetail.studentsPanel.addModal.lastNameInput.value.trim();
 
     if (id === '' || firstName === '' || lastName === '') {
         launchAlert('Tutti i campi devono essere compilati correttamente.');
+        createStudentLocked = false;
         return;
     }
 
@@ -361,11 +393,13 @@ UI.classDetail.studentsPanel.addModal.createBtn.onclick = async () => {
     const created = await createStudent(classId, id, firstName, lastName);
     if (!created) {
         launchAlert("Errore creando lo studente.");
+        createStudentLocked = false;
         return;
     }
 
     await loadStudentsTable(classId);
     hide(UI.classDetail.studentsPanel.addModal.overlay);
+    createStudentLocked = false;
 };
 
 UI.classDetail.studentsPanel.table.addEventListener('click', async (e) => {
@@ -406,10 +440,7 @@ UI.classDetail.studentsPanel.qrBtn.onclick = async () => {
     new QRCode(UI.classDetail.studentsPanel.qrCode, {
         text: qrData,
         width: 200,
-        height: 200,
-        colorDark: "#000000",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.H
+        height: 200
     });
 
     const tbody = UI.classDetail.studentsPanel.qrTable.querySelector('tbody');
@@ -417,35 +448,34 @@ UI.classDetail.studentsPanel.qrBtn.onclick = async () => {
     async function updatePendingStudents() {
         const students = await fetch(`/classes/${classId}/pending-students`).then(r => r.json());
         tbody.innerHTML = '';
-        students.forEach(student => {
+
+        students.forEach(s => {
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>${student.student_id || ''}</td>
-                <td>${student.first_name}</td>
-                <td>${student.last_name}</td>
-                <td>
-                    <button class="delete-btn" data-id="${student.id}">Elimina</button>
-                </td>
+                <td>${s.student_id || ""}</td>
+                <td>${s.first_name}</td>
+                <td>${s.last_name}</td>
+                <td><button class="delete-btn" data-id="${s.id}">Elimina</button></td>
             `;
             tbody.appendChild(row);
         });
 
         tbody.querySelectorAll('.delete-btn').forEach(btn => {
-            btn.onclick = async () => {
-                const id = btn.dataset.id;
-                await fetch(`/pending-students/${id}`, { method: 'DELETE' });
+            btn.addEventListener("click", async () => {
+                await fetch(`/pending-students/${btn.dataset.id}`, { method: "DELETE" });
                 updatePendingStudents();
-            };
+            });
         });
     }
 
     pendingInterval = setInterval(updatePendingStudents, 1000);
     updatePendingStudents();
 
-    show(UI.classDetail.studentsPanel.qrModal, 'flex');
+    show(UI.classDetail.studentsPanel.qrModal, "flex");
 
-    UI.classDetail.studentsPanel.approvePendingBtn.onclick = async () => {
-        await fetch(`/classes/${classId}/approve-pending-students`, { method: 'POST' });
+    UI.classDetail.studentsPanel.addToClassBtn.onclick = async () => {
+        const classId = parseInt(UI.classDetail.title.dataset.classId);
+        await fetch(`/classes/${classId}/accept-pending-students`, { method: 'POST' });
         updatePendingStudents();
     };
 };
@@ -453,21 +483,6 @@ UI.classDetail.studentsPanel.qrBtn.onclick = async () => {
 UI.classDetail.studentsPanel.closeQrBtn.onclick = () => {
     hide(UI.classDetail.studentsPanel.qrModal);
     clearInterval(pendingInterval);
-};
-
-UI.classDetail.studentsPanel.addToClassBtn.onclick = () => {
-    const classId = parseInt(UI.classDetail.title.dataset.classId);
-    const cls = db.classes.find(c => c.id === classId);
-
-    pendingStudents.forEach(student => {
-        if (!cls.students.some(s => s.id === student.id)) {
-            cls.students.push({ ...student, attendance: 0 });
-        }
-    });
-
-    loadStudentsTable(classId);
-    pendingStudents = [];
-    hide(UI.classDetail.studentsPanel.qrModal);
 };
 
 // class detail - lessons panel
@@ -540,7 +555,7 @@ UI.lessonDetail.qrBtn.onclick = async () => {
         const data = await fetch(`/lessons/${lessonId}/token`, { method: 'POST' }).then(r => r.json());
         const ip = data.server_ip;
         const token = data.token;
-        const qrUrl = `http://${ip}:3000/?class=${classId}&token=${token}`;
+        const qrUrl = `http://${ip}:3000/?class=${classId}&lesson=${lessonId}&token=${token}`;;
 
         UI.lessonDetail.qrModal.token.textContent = token;
         UI.lessonDetail.qrModal.code.innerHTML = '';
@@ -554,7 +569,7 @@ UI.lessonDetail.qrBtn.onclick = async () => {
             correctLevel: QRCode.CorrectLevel.H
         });
 
-        let countdown = 5;
+        let countdown = 20;
         UI.lessonDetail.qrModal.timer.textContent = `Tempo rimanente: ${countdown}s`;
 
         lessonQrInterval = setInterval(async () => {
@@ -574,6 +589,7 @@ UI.lessonDetail.qrBtn.onclick = async () => {
 UI.lessonDetail.qrModal.closeBtn.onclick = async () => {
     hide(UI.lessonDetail.qrModal.overlay);
     clearInterval(lessonQrInterval);
+    loadAttendanceTable(currentClassId, currentLessonId);
     await fetch(`/lessons/${currentLessonId}/token`, { method: 'DELETE' });
 };
 
@@ -757,6 +773,87 @@ async function updateClassName(classId, newName) {
         return null;
     }
 }
+
+/* SHORTCUTS */
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        hide(UI.classes.addModal.overlay);
+        hide(UI.classDetail.studentsPanel.addModal.overlay);
+        hide(UI.classDetail.studentsPanel.qrModal);
+        hide(UI.classDetail.lessonsPanel.addModal.overlay);
+        hide(UI.lessonDetail.qrModal.overlay);
+    }
+});
+
+const addModal = UI.classDetail.studentsPanel.addModal;
+
+const studentInputs = [
+    addModal.idInput,
+    addModal.firstNameInput,
+    addModal.lastNameInput
+];
+
+studentInputs.forEach((input, index) => {
+    input.addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+
+        e.preventDefault();
+
+        const isLast = index === studentInputs.length - 1;
+
+        if (!isLast) {
+            studentInputs[index + 1].focus();
+        } else {
+            addModal.createBtn.click();
+        }
+    });
+});
+
+UI.classes.addModal.input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        UI.classes.addModal.createBtn.click();
+    }
+});
+
+UI.classDetail.titleInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        UI.classDetail.changeNameBtn.click();
+    }
+});
+
+{
+    const addModal = UI.classDetail.studentsPanel.addModal;
+
+    const studentInputs = [
+        addModal.idInput,
+        addModal.firstNameInput,
+        addModal.lastNameInput
+    ];
+
+    studentInputs.forEach((input, index) => {
+        input.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+
+            e.preventDefault();
+            const isLast = index === studentInputs.length - 1;
+
+            if (!isLast) {
+                studentInputs[index + 1].focus();
+            } else {
+                addModal.createBtn.click();
+            }
+        });
+    });
+}
+
+UI.classDetail.lessonsPanel.addModal.dateInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        UI.classDetail.lessonsPanel.addModal.createBtn.click();
+    }
+});
 
 /* INIT */
 getClasses();
