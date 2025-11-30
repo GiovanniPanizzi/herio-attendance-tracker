@@ -87,7 +87,7 @@ To create a local build of **Herio Scholar**:
 1. **Clone the repository**:
 
 ```bash
-git clone https://github.com/GiovanniPanizzi/herio-attendance-tracker.git
+git clone https://github.com/GiovanniPanizzi/herio-scholar-attendance-tracker.git
 cd herio-scholar-attendance-tracker
 ```
 
