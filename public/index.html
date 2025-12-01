@@ -57,9 +57,8 @@
                    class="p-3 border border-gray-300 bg-gray-50 rounded-lg w-full text-sm" readonly>
 
             <label for="matricola" class="sr-only">Student ID</label>
-            <input type="text" name="matricola" id="matricola" placeholder="Student ID (e.g. 123456)" required
-                   class="p-3 border border-gray-300 rounded-lg w-full focus:ring-2 focus:ring-indigo-500 transition text-lg" 
-                   inputmode="numeric" pattern="[0-9]*">
+            <input inputmode="text" type="text" name="matricola" id="matricola" placeholder="Student ID (e.g. 123456)" required
+                   class="p-3 border border-gray-300 rounded-lg w-full focus:ring-2 focus:ring-indigo-500 transition text-lg" >
             
             <p id="status" class="text-sm font-semibold h-5"></p>
 
@@ -149,8 +148,8 @@
                 const lessonId = lessonIdInput.value;
 
                 // Validate student ID format
-                if (!studentId || !/^\d{6}$/.test(studentId)) {
-                    showError("Enter a valid 6-digit Student ID.", studentIdInput);
+                if (!studentId) {
+                    showError("Enter a valid Student ID.", studentIdInput);
                     return;
                 }
 
