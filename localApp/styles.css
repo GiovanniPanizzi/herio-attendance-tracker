@@ -48,21 +48,22 @@ input {
     font-weight: bold;
 }
 
-#students-table {
+.students-table {
     width: 100%;
     border-collapse: collapse;
     font-family: var(--font-family, sans-serif);
     font-size: 16px;
     color: var(--color-text);
+
 }
 
-#students-table thead {
+.students-table thead {
     display: table; 
     width: 100%;
     table-layout: fixed;
 }
 
-#students-table th {
+.students-table th {
     background-color: var(--color-accent-light);
     color: var(--color-bg);
     text-align: left;
@@ -73,29 +74,29 @@ input {
     z-index: 2;
 }
  
-#students-table tbody {
+.students-table tbody {
     display: block;    
     max-height: 600px;
     overflow-y: auto;    
     width: 100%;
 }
  
-#students-table td {
+.students-table td {
     display: table-cell;
     padding: 12px 16px;
     border-bottom: 1px solid rgba(0,0,0,0.1);
 }
 
-#students-table tbody tr:nth-child(even) {
+.students-table tbody tr:nth-child(even) {
     background-color: rgba(0,0,0,0.03);
 }
 
-#students-table tbody tr:hover {
+.students-table tbody tr:hover {
     background-color: rgba(0,0,0,0.08);
     transition: background-color 0.2s ease;
 }
 
-#students-table td .button {
+.students-table td .button {
     padding: 6px 10px;
     font-size: 14px;
     border-radius: var(--border-radius);
@@ -107,29 +108,33 @@ input {
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-#students-table thead,
-#students-table tbody tr {
+.students-table thead,
+.students-table tbody tr {
     table-layout: fixed;
     display: table;
     width: 100%;
 }
 
-#students-table td .button:hover {
+.students-table td .button:hover {
     transform: scale(1.05);
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
 
-#students-table td .button svg {
+.students-table td .button svg {
     width: 18px;
     height: 18px;
     margin-right: 4px;
 }
 
 @media (max-width: 768px) {
-    #students-table th, #students-table td {
+    .students-table th, .students-table td {
         padding: 8px 12px;
         font-size: 14px;
     }
+}
+
+#qr-class-students-table tbody {
+    max-height: 20vh;
 }
 
 #attendance-students-table {

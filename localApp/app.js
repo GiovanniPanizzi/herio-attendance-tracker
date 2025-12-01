@@ -585,7 +585,7 @@ UI.lessonDetail.qrBtn.onclick = async () => {
                 colorLight: "#ffffff",
                 correctLevel: QRCode.CorrectLevel.H
             });
-            let countdown = 20;
+            let countdown = 60;
             UI.lessonDetail.qrModal.timer.textContent = `Time remaining: ${countdown}s`;
 
             lessonQrInterval = setInterval(async () => {
